@@ -1,0 +1,18 @@
+{
+  "id": "block_seed_arrivee",
+  "name": "Arrivée",
+  "createdAt": "2026-05-06T00:00:00Z",
+  "atelier": "_seed",
+  "special": "arrivee",
+  "note": "Grille en format Z-direction. Après rotation 90° CW : bords haut/bas = dur, bord droit = dur, bord gauche = ouvert (rz=2..5), bande boost en rx=4 = marqueur visuel de la ligne d'arrivée.",
+  "grid": [
+    ["dur", "dur", "dur", "dur", "dur", "dur", "dur", "dur"],
+    ["dur",  null,  null,  null,  null,  null,  null, "dur"],
+    [ null,  null,  null,  null, "boost", null,  null, "dur"],
+    [ null,  null,  null,  null, "boost", null,  null, "dur"],
+    [ null,  null,  null,  null, "boost", null,  null, "dur"],
+    [ null,  null,  null,  null, "boost", null,  null, "dur"],
+    ["dur",  null,  null,  null,  null,  null,  null, "dur"],
+    ["dur", "dur", "dur", "dur", "dur", "dur", "dur", "dur"]
+  ]
+}

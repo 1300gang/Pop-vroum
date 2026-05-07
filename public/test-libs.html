@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pop Vroum — Test libs</title>
+  <style>
+    body { background: #1a1a2e; color: #e0e0e0; font-family: monospace; padding: 2rem; }
+    h1 { color: #f5a623; margin-bottom: 1.5rem; }
+    .lib { margin: 1rem 0; padding: 1rem; border-radius: 8px; background: #0f0f23; }
+    .lib h2 { font-size: 1rem; margin-bottom: 0.5rem; }
+    .statut { font-size: 1.2rem; font-weight: bold; }
+    .ok  { color: #2ecc71; }
+    .ko  { color: #e74c3c; }
+    .att { color: #f5a623; }
+    #log { margin-top: 2rem; white-space: pre; font-size: 0.85rem; opacity: 0.7; }
+  </style>
+</head>
+<body>
+  <h1>Pop Vroum — Vérification des libs</h1>
+
+  <div class="lib" id="bloc-three">
+    <h2>Three.js</h2>
+    <div class="statut att" id="three-statut">chargement…</div>
+  </div>
+
+  <div class="lib" id="bloc-jsqr">
+    <h2>jsQR</h2>
+    <div class="statut att" id="jsqr-statut">chargement…</div>
+  </div>
+
+  <div class="lib" id="bloc-opencv">
+    <h2>OpenCV.js (~10 Mo — peut prendre quelques secondes)</h2>
+    <div class="statut att" id="opencv-statut">chargement…</div>
+  </div>
+
+  <div id="log"></div>
+
+  <!-- OpenCV.js et jsQR : scripts globaux, chargés avant le module ES -->
+  <script>
+    // Callback appelé par OpenCV.js quand le runtime WASM est prêt
+    var Module = {
+      onRuntimeInitialized: function () {
+        var version = cv.getBuildInformation
+          ? cv.getBuildInformation().split('\n')[0]
+          : 'version inconnue';
+        afficherStatut('opencv', '✓ OpenCV.js prêt — ' + version, true);
+        log('OpenCV.js : ' + version);
+      }
+    };
+  </script>
+  <script src="js/lib/opencv.js" onerror="afficherStatut('opencv','✗ Échec chargement opencv.js',false)"></script>
+  <script src="js/lib/jsqr.js"   onerror="afficherStatut('jsqr',  '✗ Échec chargement jsqr.js',  false)"></script>
+
+  <script type="module">
+    import * as THREE from './js/lib/three.module.js';
+
+    // --- Three.js ---
+    const rev = THREE.REVISION;
+    afficherStatut('three', '✓ Three.js r' + rev, true);
+    log('Three.js : r' + rev);
+
+    // --- jsQR ---
+    if (typeof jsQR === 'function') {
+      afficherStatut('jsqr', '✓ jsQR disponible', true);
+      log('jsQR : OK (typeof jsQR === function)');
+    } else {
+      afficherStatut('jsqr', '✗ jsQR introuvable', false);
+      log('jsQR : ERREUR');
+    }
+  </script>
+
+  <script>
+    function afficherStatut(id, texte, ok) {
+      var el = document.getElementById(id + '-statut');
+      if (!el) return;
+      el.textContent = texte;
+      el.className = 'statut ' + (ok === true ? 'ok' : ok === false ? 'ko' : 'att');
+    }
+
+    function log(msg) {
+      console.log('[test-libs] ' + msg);
+      var el = document.getElementById('log');
+      if (el) el.textContent += msg + '\n';
+    }
+  </script>
+</body>
+</html>

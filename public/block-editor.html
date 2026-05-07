@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Pop Vroum — Éditeur de blocs</title>
+  <link rel="stylesheet" href="/css/shared.css">
+  <link rel="stylesheet" href="/css/block-editor.css">
+</head>
+<body>
+
+  <!-- En-tête -->
+  <header>
+    <h1>✏ Éditeur de blocs</h1>
+    <div class="champ">
+      <label for="inp-nom">Nom du bloc</label>
+      <input id="inp-nom" type="text" placeholder="ex. Chicane du mardi" maxlength="60">
+    </div>
+    <div class="champ">
+      <label for="inp-atelier">Atelier</label>
+      <input id="inp-atelier" type="text" placeholder="ex. Paris 2026-06" maxlength="60">
+    </div>
+    <a href="/" style="margin-left:auto; font-size:0.75rem; color:#888; text-decoration:none;">← Accueil</a>
+  </header>
+
+  <!-- Corps -->
+  <main>
+
+    <!-- Palette gauche -->
+    <aside id="palette">
+      <h2>Outil</h2>
+
+      <div class="outil" data-symbole="ramp" title="Recliquer pour tourner à 90°">
+        <div class="outil-swatch"><span class="outil-swatch-ico">↑</span></div>
+        <div>
+          <div class="outil-label">Rampe <span class="outil-rot"></span></div>
+          <div class="outil-desc">propulse · reclic = ↺</div>
+        </div>
+      </div>
+
+      <div class="outil" data-symbole="sticky" title="Ralentit et colle la voiture au sol">
+        <div class="outil-swatch"><span class="outil-swatch-ico">●</span></div>
+        <div>
+          <div class="outil-label">Collant</div>
+          <div class="outil-desc">freine</div>
+        </div>
+      </div>
+
+      <div class="outil" data-symbole="dur" title="Mur infranchissable">
+        <div class="outil-swatch"><span class="outil-swatch-ico">■</span></div>
+        <div>
+          <div class="outil-label">Dur</div>
+          <div class="outil-desc">obstacle</div>
+        </div>
+      </div>
+
+      <div class="outil" data-symbole="boost" title="Recliquer pour tourner à 90°">
+        <div class="outil-swatch"><span class="outil-swatch-ico">▲</span></div>
+        <div>
+          <div class="outil-label">Boost <span class="outil-rot"></span></div>
+          <div class="outil-desc">accélère · reclic = ↺</div>
+        </div>
+      </div>
+
+      <hr id="sep-palette">
+
+      <div class="outil actif" data-symbole="null" title="Effacer une case">
+        <div class="outil-swatch"><span class="outil-swatch-ico" style="opacity:.4">✕</span></div>
+        <div>
+          <div class="outil-label">Gomme</div>
+          <div class="outil-desc">vide</div>
+        </div>
+      </div>
+
+      <button class="btn-palette" id="btn-effacer">Tout effacer</button>
+
+      <div id="legende">
+        Bord haut = entrée<br>
+        Bord bas = sortie<br>
+        <span style="color:#2ecc71">█</span> passable &nbsp;
+        <span style="color:#e74c3c">█</span> bloqué
+      </div>
+    </aside>
+
+    <!-- Zone droite : grille + aperçu -->
+    <div id="zone-droite">
+      <div id="grille-wrap">
+        <div id="grille" aria-label="Grille 8×8 du bloc map"></div>
+      </div>
+
+      <!-- Aperçu 3D superposé -->
+      <div id="apercu-panel">
+        <div id="apercu-titre">
+          <span>Aperçu 3D</span>
+          <span style="color:#888; font-size:0.6rem">cliquer-glisser pour orbiter</span>
+        </div>
+        <canvas id="apercu-cv"></canvas>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- Barre basse -->
+  <div id="barre-bas">
+    <button class="btn btn-primary" id="btn-exporter">⬇ Exporter JSON</button>
+    <button class="btn btn-send"    id="btn-envoyer">↑ Envoyer au serveur</button>
+    <button class="btn" id="btn-charger">⬆ Charger JSON</button>
+    <button class="btn" id="btn-apercu">Aperçu 3D</button>
+    <span id="msg-validation"></span>
+  </div>
+
+  <!-- Dialog chargement JSON -->
+  <div id="dialog-load" role="dialog" aria-modal="true" aria-label="Charger un bloc JSON">
+    <div id="dialog-inner">
+      <h3>Charger un bloc JSON</h3>
+      <p>Coller le contenu d'un fichier .json exporté depuis cet éditeur.</p>
+      <textarea id="txt-json" placeholder='{ "id": "...", "grid": [[...], ...] }'></textarea>
+      <div id="err-json"></div>
+      <div class="dialog-actions">
+        <button class="btn" id="btn-dialog-annuler">Annuler</button>
+        <button class="btn btn-primary" id="btn-dialog-ok">Charger</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="/js/pages/block-editor-page.js"></script>
+</body>
+</html>

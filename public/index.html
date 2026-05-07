@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Pop Vroum — Accueil</title>
+  <link rel="stylesheet" href="/css/shared.css">
+  <style>
+    body {
+      padding: 0;
+    }
+
+    .page {
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 2rem 1rem 4rem;
+    }
+
+    /* ---- En-tête ---- */
+    .entete {
+      text-align: center;
+      padding: 2.5rem 1rem 2rem;
+    }
+
+    .entete h1 {
+      font-size: clamp(2rem, 6vw, 3.2rem);
+      font-weight: 900;
+      letter-spacing: -1px;
+      color: var(--couleur-accent);
+      margin-bottom: .4rem;
+    }
+
+    .entete p {
+      font-size: 1rem;
+      opacity: .7;
+    }
+
+    /* ---- Sections ---- */
+    .section-titre {
+      font-size: .7rem;
+      font-weight: 700;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      opacity: .5;
+      margin-bottom: 1rem;
+    }
+
+    /* ---- Cartes atelier ---- */
+    .grille-atelier {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1rem;
+      margin-bottom: 2.5rem;
+    }
+
+    .carte {
+      background: rgba(255, 255, 255, .05);
+      border-radius: var(--rayon-bord);
+      border-left: 4px solid var(--couleur-accent);
+      padding: 1.25rem 1.25rem 1rem;
+      text-decoration: none;
+      color: var(--couleur-texte);
+      display: flex;
+      align-items: flex-start;
+      gap: 1rem;
+      transition: background .15s, transform .15s;
+    }
+
+    .carte:hover {
+      background: rgba(255, 255, 255, .1);
+      transform: translateY(-2px);
+    }
+
+    .carte-num {
+      font-size: 1.6rem;
+      font-weight: 900;
+      color: var(--couleur-accent);
+      line-height: 1;
+      flex-shrink: 0;
+      min-width: 2rem;
+    }
+
+    .carte-corps h2 {
+      font-size: 1rem;
+      font-weight: 700;
+      margin-bottom: .25rem;
+    }
+
+    .carte-corps p {
+      font-size: .82rem;
+      opacity: .65;
+      line-height: 1.4;
+    }
+
+    /* Couleurs par étape */
+    .carte:nth-child(1) { border-left-color: var(--couleur-bleu); }
+    .carte:nth-child(1) .carte-num { color: var(--couleur-bleu); }
+
+    .carte:nth-child(2) { border-left-color: var(--couleur-vert); }
+    .carte:nth-child(2) .carte-num { color: var(--couleur-vert); }
+
+    .carte:nth-child(3) { border-left-color: var(--couleur-orange); }
+    .carte:nth-child(3) .carte-num { color: var(--couleur-orange); }
+
+    .carte:nth-child(4) { border-left-color: var(--couleur-violet); }
+    .carte:nth-child(4) .carte-num { color: var(--couleur-violet); }
+
+    /* ---- Section Dev / Test ---- */
+    .section-dev {
+      background: rgba(255, 255, 255, .03);
+      border-radius: var(--rayon-bord);
+      border: 1px solid rgba(255, 255, 255, .08);
+      padding: 1rem 1.25rem;
+    }
+
+    .section-dev .section-titre {
+      margin-bottom: .75rem;
+    }
+
+    .liste-dev {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: .5rem;
+    }
+
+    .liste-dev a {
+      color: var(--couleur-texte);
+      text-decoration: none;
+      font-size: .88rem;
+      opacity: .6;
+      display: flex;
+      align-items: center;
+      gap: .5rem;
+      transition: opacity .15s;
+    }
+
+    .liste-dev a:hover {
+      opacity: 1;
+    }
+
+    .liste-dev a::before {
+      content: '→';
+      opacity: .4;
+    }
+
+    /* ---- Séparateur ---- */
+    .sep {
+      height: 1px;
+      background: rgba(255,255,255,.07);
+      margin: 2rem 0;
+    }
+
+    /* ---- Feuilles ---- */
+    .cartes-feuilles {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 1rem;
+      margin-bottom: 2.5rem;
+    }
+
+    .carte-feuille {
+      background: rgba(255, 255, 255, .05);
+      border-radius: var(--rayon-bord);
+      padding: 1.1rem 1.25rem;
+      display: flex;
+      flex-direction: column;
+      gap: .75rem;
+    }
+
+    .carte-feuille h3 {
+      font-size: .95rem;
+      font-weight: 700;
+    }
+
+    .carte-feuille p {
+      font-size: .8rem;
+      opacity: .6;
+      line-height: 1.4;
+    }
+
+    .btn-feuille {
+      display: inline-block;
+      text-decoration: none;
+      background: var(--couleur-accent);
+      color: #000;
+      font-weight: 700;
+      font-size: .82rem;
+      padding: .5rem 1rem;
+      border-radius: 6px;
+      text-align: center;
+      transition: opacity .15s;
+      align-self: flex-start;
+    }
+
+    .btn-feuille:hover { opacity: .85; }
+
+    /* ---- Footer ---- */
+    footer {
+      text-align: center;
+      font-size: .75rem;
+      opacity: .35;
+      padding-top: 2rem;
+    }
+
+    @media (max-width: 520px) {
+      .grille-atelier { grid-template-columns: 1fr; }
+      .cartes-feuilles { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="page">
+
+    <div class="entete">
+      <h1>Pop Vroum</h1>
+      <p>Jeu coopératif phygital — Collectif Mille Trois Cents</p>
+    </div>
+
+    <!-- Flux atelier -->
+    <p class="section-titre">Flux atelier — dans l'ordre</p>
+    <div class="grille-atelier">
+
+      <a href="/scan.html" class="carte">
+        <div class="carte-num">1</div>
+        <div class="carte-corps">
+          <h2>Scanner sa voiture</h2>
+          <p>Placez votre feuille colorée devant la webcam pour reconstruire votre véhicule en 3D.</p>
+          <p style="font-size:.75rem;opacity:.5;margin-top:.25rem">feuille v1 — 3 vues orthogonales</p>
+        </div>
+      </a>
+
+      <a href="/lobby.html" class="carte">
+        <div class="carte-num">2</div>
+        <div class="carte-corps">
+          <h2>Rejoindre le lobby</h2>
+          <p>Entrez votre pseudo et rejoignez une partie avec votre véhicule scanné.</p>
+        </div>
+      </a>
+
+      <a href="/block-editor.html" class="carte">
+        <div class="carte-num">3</div>
+        <div class="carte-corps">
+          <h2>Créer un bloc map</h2>
+          <p>Dessinez une grille 8×8 avec les 4 symboles, prévisualisez en 3D, exportez en JSON.</p>
+        </div>
+      </a>
+
+      <a href="/gallery.html" class="carte">
+        <div class="carte-num">4</div>
+        <div class="carte-corps">
+          <h2>Galerie des véhicules</h2>
+          <p>Consultez tous les véhicules créés lors de l'atelier.</p>
+        </div>
+      </a>
+
+    </div>
+
+    <!-- Feuilles d'impression -->
+    <div class="sep"></div>
+    <p class="section-titre">Préparation — feuilles à imprimer</p>
+    <div class="cartes-feuilles">
+
+      <div class="carte-feuille">
+        <h3>Feuille Véhicule <span style="font-size:.7rem;opacity:.5;font-weight:400">v1 — 3 vues</span></h3>
+        <p>Colorie ton véhicule en 3 vues orthographiques — A3, 4 QR codes, patch couleur.</p>
+        <a href="/assets/sheets/feuille-vehicule-A3.svg" download="feuille-vehicule-A3.svg" class="btn-feuille">Télécharger SVG</a>
+      </div>
+
+      <div class="carte-feuille" style="border: 1px solid rgba(245,166,35,.3);">
+        <h3>Feuille Véhicule <span style="font-size:.7rem;color:var(--couleur-orange);font-weight:700">TEST A/B — sandwich v2</span></h3>
+        <p>4 tranches vues du dessus — A4, plus intuitif pour les non-designers et les enfants.</p>
+        <div style="display:flex;gap:.5rem;flex-wrap:wrap">
+          <a href="/assets/sheets/feuille-vehicule-v2-sandwich-A4.pdf" download class="btn-feuille">PDF A4</a>
+          <a href="/assets/sheets/feuille-vehicule-v2-sandwich-A3.pdf" download class="btn-feuille" style="background:rgba(255,255,255,.15);color:var(--couleur-texte)">PDF A3</a>
+        </div>
+      </div>
+
+      <div class="carte-feuille">
+        <h3>Feuille Bloc Map</h3>
+        <p>Dessinez la map collectivement avec les 4 symboles — A3, grille 8×8, 4 QR codes.</p>
+        <a href="/assets/sheets/feuille-bloc-A3.svg" download="feuille-bloc-A3.svg" class="btn-feuille">Télécharger SVG</a>
+      </div>
+
+    </div>
+
+    <!-- Dev / Test -->
+    <div class="sep"></div>
+    <div class="section-dev">
+      <p class="section-titre">Dev / Test</p>
+      <ul class="liste-dev">
+        <li><a href="/scan2.html">Scanner v2 — Sandwich <span style="color:var(--couleur-orange);font-size:.75em">TEST A/B</span></a></li>
+        <li><a href="/test-jeu-v2-solo.html">Test jeu solo (véhicule aléatoire, map procédurale)</a></li>
+        <li><a href="/spectator.html">Vue spectateur</a></li>
+        <li><a href="/test-voxel.html">Test reconstruction voxel</a></li>
+        <li><a href="/test-gallery.html">Test galerie</a></li>
+        <li><a href="/test-block.html">Test bloc map</a></li>
+      </ul>
+    </div>
+
+    <footer>
+      <p>Pop Vroum v1.1 — Collectif Mille Trois Cents</p>
+    </footer>
+
+  </div>
+
+</body>
+</html>

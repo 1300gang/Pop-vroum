@@ -1,0 +1,9 @@
+{
+  "id": "bot-2",
+  "nom": "Bleu Grip",
+  "couleur": "blue",
+  "couleurHex": "#1a52e0",
+  "palette": ["blue", "violet"],
+  "stats": { "speed": 6.5, "grip": 9.0, "accel": 6.0 },
+  "powers": { "aspiration": 0, "phares": 2, "sillage": 8, "shield": 1 }
+}

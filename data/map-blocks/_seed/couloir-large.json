@@ -1,0 +1,17 @@
+{
+  "id": "block_seed_couloir_large",
+  "name": "Couloir large",
+  "createdAt": "2026-05-06T00:00:00Z",
+  "atelier": "_seed",
+  "note": "Après rotation 90° CW : couloir complètement ouvert sans obstacle",
+  "grid": [
+    ["dur", "dur", "dur", "dur", "dur", "dur", "dur", "dur"],
+    [null,  null,  null,  null,  null,  null,  null,  null],
+    [null,  null,  null,  null,  null,  null,  null,  null],
+    [null,  null,  null,  null,  null,  null,  null,  null],
+    [null,  null,  null,  null,  null,  null,  null,  null],
+    [null,  null,  null,  null,  null,  null,  null,  null],
+    [null,  null,  null,  null,  null,  null,  null,  null],
+    ["dur", "dur", "dur", "dur", "dur", "dur", "dur", "dur"]
+  ]
+}

@@ -1,0 +1,350 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!--
+  feuille-vehicule-A3.svg — Pop Vroum
+  Format : A3 paysage 420×297 mm
+  viewBox : 0 0 420 297 (1 unité = 1 mm)
+
+  Layout (toutes les cotes en mm) :
+    QR coins     : 20×20mm aux 4 coins, marge 4mm
+    Zone utile   : x=[28, 392], y=[28, 268]
+    Cases grille : 18×18mm (1.8cm > min 1.5cm)
+    Vue profil   : x=[110, 254], y=[40, 112]  → 8×4 cases
+    Vue face     : x=[28,  100], y=[123, 195] → 4×4 cases
+    Vue dessus   : x=[110, 254], y=[123, 195] → 8×4 cases
+    Schéma       : x=[28,  108], y=[34,  118]
+    Légende      : x=[262, 392], y=[34,  195]
+    Patch        : x=[28,  228], y=[205, 255]
+-->
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  viewBox="0 0 420 297"
+  width="420mm"
+  height="297mm"
+  version="1.1">
+
+  <defs>
+    <style type="text/css">
+      text { font-family: Arial, Helvetica, sans-serif; }
+      .t-main  { font-size: 7px; font-weight: bold; letter-spacing: 1px; }
+      .t-section { font-size: 5px; font-weight: bold; }
+      .t-axis  { font-size: 4px; fill: #555; }
+      .t-label { font-size: 4px; }
+      .t-small { font-size: 3.5px; fill: #444; }
+      .g-outer { stroke: #000; stroke-width: 0.7; fill: none; }
+      .g-inner { stroke: #555; stroke-width: 0.3; fill: none; }
+      .c-patch  { stroke: #000; stroke-width: 0.4; }
+      .qr-box  { stroke: #000; stroke-width: 0.8; fill: none; }
+      .sep     { stroke: #bbb; stroke-width: 0.3; }
+    </style>
+    <!-- Flèche pour les axes -->
+    <marker id="arrow" markerWidth="4" markerHeight="4" refX="3" refY="2" orient="auto">
+      <path d="M0,0 L0,4 L4,2 z" fill="#555"/>
+    </marker>
+  </defs>
+
+  <!-- Fond -->
+  <rect width="420" height="297" fill="white"/>
+
+  <!-- ══════════════════════════════════════════════════
+       TITRE PRINCIPAL
+       ══════════════════════════════════════════════════ -->
+  <text x="210" y="17" class="t-main" text-anchor="middle" fill="#111">POP VROUM — Feuille véhicule</text>
+  <line x1="28" y1="21" x2="392" y2="21" class="sep"/>
+
+  <!-- ══════════════════════════════════════════════════
+       SCHÉMA DE PROJECTION ORTHOGONALE
+       Zone : x=[28, 108], y=[25, 118]
+
+       Disposition orthogonale standard (vue de face centre) :
+         [coin z/x]  [DESSUS 8×4 → axe x]
+         [FACE 4×4]  [PROFIL 8×4 → axe x]
+         (axe z→)    (axe y↑ partagé)
+
+       Scale schéma : 3mm/voxel
+         face   = 12×12mm  (4×3, 4×3)
+         profil = 24×12mm  (8×3, 4×3)
+         dessus = 24×12mm  (8×3, 4×3)
+
+       Positions (x0=33, y0=57) :
+         coin   : x=[33,45], y=[57,69]
+         dessus : x=[45,69], y=[57,69]
+         face   : x=[33,45], y=[69,81]
+         profil : x=[45,69], y=[69,81]
+       ══════════════════════════════════════════════════ -->
+  <g id="schema-projection">
+    <text x="42" y="30" class="t-section">Projection orthogonale</text>
+    <text x="42" y="36" class="t-small">Comment les 3 vues s'assemblent :</text>
+
+    <!-- Coin haut-gauche : repère d'axe -->
+    <rect x="33" y="57" width="12" height="12" fill="#f0f0f0" stroke="#bbb" stroke-width="0.3"/>
+    <!-- flèche x (droite) -->
+    <line x1="35" y1="68" x2="43" y2="68" stroke="#555" stroke-width="0.5" marker-end="url(#arrow)"/>
+    <text x="44" y="71" class="t-axis">x</text>
+    <!-- flèche z (bas) -->
+    <line x1="35" y1="59" x2="35" y2="67" stroke="#555" stroke-width="0.5" marker-end="url(#arrow)"/>
+    <text x="30" y="64" class="t-axis">z</text>
+
+    <!-- VUE DESSUS (haut-droite) : 8 colonnes × 4 lignes = 24×12mm -->
+    <rect x="45" y="57" width="24" height="12" fill="#e8f4ff" stroke="#000" stroke-width="0.7"/>
+    <!-- Grille interne dessus (3mm/case) -->
+    <line x1="48" y1="57" x2="48" y2="69" stroke="#aac" stroke-width="0.2"/>
+    <line x1="51" y1="57" x2="51" y2="69" stroke="#aac" stroke-width="0.2"/>
+    <line x1="54" y1="57" x2="54" y2="69" stroke="#aac" stroke-width="0.2"/>
+    <line x1="57" y1="57" x2="57" y2="69" stroke="#aac" stroke-width="0.2"/>
+    <line x1="60" y1="57" x2="60" y2="69" stroke="#aac" stroke-width="0.2"/>
+    <line x1="63" y1="57" x2="63" y2="69" stroke="#aac" stroke-width="0.2"/>
+    <line x1="66" y1="57" x2="66" y2="69" stroke="#aac" stroke-width="0.2"/>
+    <line x1="45" y1="60" x2="69" y2="60" stroke="#aac" stroke-width="0.2"/>
+    <line x1="45" y1="63" x2="69" y2="63" stroke="#aac" stroke-width="0.2"/>
+    <line x1="45" y1="66" x2="69" y2="66" stroke="#aac" stroke-width="0.2"/>
+    <text x="57" y="65" class="t-small" text-anchor="middle" font-weight="bold">DESSUS</text>
+
+    <!-- VUE FACE (bas-gauche) : 4 colonnes × 4 lignes = 12×12mm -->
+    <rect x="33" y="69" width="12" height="12" fill="#fff0e8" stroke="#000" stroke-width="0.7"/>
+    <!-- Grille interne face -->
+    <line x1="36" y1="69" x2="36" y2="81" stroke="#caa" stroke-width="0.2"/>
+    <line x1="39" y1="69" x2="39" y2="81" stroke="#caa" stroke-width="0.2"/>
+    <line x1="42" y1="69" x2="42" y2="81" stroke="#caa" stroke-width="0.2"/>
+    <line x1="33" y1="72" x2="45" y2="72" stroke="#caa" stroke-width="0.2"/>
+    <line x1="33" y1="75" x2="45" y2="75" stroke="#caa" stroke-width="0.2"/>
+    <line x1="33" y1="78" x2="45" y2="78" stroke="#caa" stroke-width="0.2"/>
+    <text x="39" y="76" class="t-small" text-anchor="middle" font-weight="bold">FACE</text>
+
+    <!-- VUE PROFIL (bas-droite) : 8 colonnes × 4 lignes = 24×12mm -->
+    <rect x="45" y="69" width="24" height="12" fill="#e8ffe8" stroke="#000" stroke-width="0.7"/>
+    <!-- Grille interne profil -->
+    <line x1="48" y1="69" x2="48" y2="81" stroke="#aac" stroke-width="0.2"/>
+    <line x1="51" y1="69" x2="51" y2="81" stroke="#aac" stroke-width="0.2"/>
+    <line x1="54" y1="69" x2="54" y2="81" stroke="#aac" stroke-width="0.2"/>
+    <line x1="57" y1="69" x2="57" y2="81" stroke="#aac" stroke-width="0.2"/>
+    <line x1="60" y1="69" x2="60" y2="81" stroke="#aac" stroke-width="0.2"/>
+    <line x1="63" y1="69" x2="63" y2="81" stroke="#aac" stroke-width="0.2"/>
+    <line x1="66" y1="69" x2="66" y2="81" stroke="#aac" stroke-width="0.2"/>
+    <line x1="45" y1="72" x2="69" y2="72" stroke="#aac" stroke-width="0.2"/>
+    <line x1="45" y1="75" x2="69" y2="75" stroke="#aac" stroke-width="0.2"/>
+    <line x1="45" y1="78" x2="69" y2="78" stroke="#aac" stroke-width="0.2"/>
+    <text x="57" y="76" class="t-small" text-anchor="middle" font-weight="bold">PROFIL</text>
+
+    <!-- Lignes de projection (tirets légers) montrant les axes partagés -->
+    <!-- y partagé entre Face et Profil (même hauteur) : déjà visible car même y -->
+    <!-- x partagé entre Dessus et Profil (même largeur) : déjà visible car même x -->
+    <!-- z partagé entre Face et Dessus : Face largeur = Dessus hauteur = 4 cases -->
+    <!-- Flèche y à gauche (axe commun face/profil) -->
+    <line x1="31" y1="81" x2="31" y2="69" stroke="#555" stroke-width="0.5" marker-end="url(#arrow)"/>
+    <text x="30" y="75" class="t-axis" text-anchor="end">y</text>
+
+    <!-- Légendes axes sous/à-côté -->
+    <text x="39" y="85" class="t-axis" text-anchor="middle">← z →</text>
+    <text x="57" y="85" class="t-axis" text-anchor="middle">← x →</text>
+
+    <!-- Note règle 2/3 -->
+    <rect x="28" y="91" width="80" height="14" rx="2" fill="#fffbe6" stroke="#e6d080" stroke-width="0.4"/>
+    <text x="68" y="97" class="t-small" text-anchor="middle" font-weight="bold">Règle : 2 vues sur 3 confirment</text>
+    <text x="68" y="102" class="t-small" text-anchor="middle">un voxel pour qu'il existe.</text>
+  </g>
+
+  <!-- ══════════════════════════════════════════════════
+       VUE DE PROFIL (8×4 cases)
+       x=[110, 254], y=[40, 112]  — cases 18×18mm
+       ══════════════════════════════════════════════════ -->
+  <g id="vue-profil">
+    <text x="182" y="36" class="t-section" text-anchor="middle">Vue de profil (côté)</text>
+
+    <!-- Contour externe -->
+    <rect x="110" y="40" width="144" height="72" class="g-outer"/>
+
+    <!-- Lignes verticales internes -->
+    <line x1="128" y1="40" x2="128" y2="112" class="g-inner"/>
+    <line x1="146" y1="40" x2="146" y2="112" class="g-inner"/>
+    <line x1="164" y1="40" x2="164" y2="112" class="g-inner"/>
+    <line x1="182" y1="40" x2="182" y2="112" class="g-inner"/>
+    <line x1="200" y1="40" x2="200" y2="112" class="g-inner"/>
+    <line x1="218" y1="40" x2="218" y2="112" class="g-inner"/>
+    <line x1="236" y1="40" x2="236" y2="112" class="g-inner"/>
+
+    <!-- Lignes horizontales internes -->
+    <line x1="110" y1="58" x2="254" y2="58" class="g-inner"/>
+    <line x1="110" y1="76" x2="254" y2="76" class="g-inner"/>
+    <line x1="110" y1="94" x2="254" y2="94" class="g-inner"/>
+
+    <!-- Axes -->
+    <line x1="110" y1="116" x2="254" y2="116" stroke="#555" stroke-width="0.4" marker-end="url(#arrow)"/>
+    <text x="182" y="121" class="t-axis" text-anchor="middle">x  (avant → arrière)</text>
+    <line x1="106" y1="112" x2="106" y2="40" stroke="#555" stroke-width="0.4" marker-end="url(#arrow)"/>
+    <text x="105" y="76" class="t-axis" text-anchor="end">y</text>
+  </g>
+
+  <!-- ══════════════════════════════════════════════════
+       VUE DE FACE (4×4 cases)
+       x=[28, 100], y=[123, 195]  — cases 18×18mm
+       ══════════════════════════════════════════════════ -->
+  <g id="vue-face">
+    <text x="64" y="119" class="t-section" text-anchor="middle">Vue de face</text>
+
+    <!-- Contour externe -->
+    <rect x="28" y="123" width="72" height="72" class="g-outer"/>
+
+    <!-- Lignes verticales internes -->
+    <line x1="46" y1="123" x2="46" y2="195" class="g-inner"/>
+    <line x1="64" y1="123" x2="64" y2="195" class="g-inner"/>
+    <line x1="82" y1="123" x2="82" y2="195" class="g-inner"/>
+
+    <!-- Lignes horizontales internes -->
+    <line x1="28" y1="141" x2="100" y2="141" class="g-inner"/>
+    <line x1="28" y1="159" x2="100" y2="159" class="g-inner"/>
+    <line x1="28" y1="177" x2="100" y2="177" class="g-inner"/>
+
+    <!-- Axes -->
+    <line x1="28" y1="199" x2="100" y2="199" stroke="#555" stroke-width="0.4" marker-end="url(#arrow)"/>
+    <text x="64" y="204" class="t-axis" text-anchor="middle">z  (gauche → droite)</text>
+    <line x1="24" y1="195" x2="24" y2="123" stroke="#555" stroke-width="0.4" marker-end="url(#arrow)"/>
+    <text x="23" y="159" class="t-axis" text-anchor="end">y</text>
+  </g>
+
+  <!-- ══════════════════════════════════════════════════
+       VUE DE DESSUS (8×4 cases)
+       x=[110, 254], y=[123, 195]  — cases 18×18mm
+       ══════════════════════════════════════════════════ -->
+  <g id="vue-dessus">
+    <text x="182" y="119" class="t-section" text-anchor="middle">Vue de dessus</text>
+
+    <!-- Contour externe -->
+    <rect x="110" y="123" width="144" height="72" class="g-outer"/>
+
+    <!-- Lignes verticales internes -->
+    <line x1="128" y1="123" x2="128" y2="195" class="g-inner"/>
+    <line x1="146" y1="123" x2="146" y2="195" class="g-inner"/>
+    <line x1="164" y1="123" x2="164" y2="195" class="g-inner"/>
+    <line x1="182" y1="123" x2="182" y2="195" class="g-inner"/>
+    <line x1="200" y1="123" x2="200" y2="195" class="g-inner"/>
+    <line x1="218" y1="123" x2="218" y2="195" class="g-inner"/>
+    <line x1="236" y1="123" x2="236" y2="195" class="g-inner"/>
+
+    <!-- Lignes horizontales internes -->
+    <line x1="110" y1="141" x2="254" y2="141" class="g-inner"/>
+    <line x1="110" y1="159" x2="254" y2="159" class="g-inner"/>
+    <line x1="110" y1="177" x2="254" y2="177" class="g-inner"/>
+
+    <!-- Axes -->
+    <line x1="110" y1="199" x2="254" y2="199" stroke="#555" stroke-width="0.4" marker-end="url(#arrow)"/>
+    <text x="182" y="204" class="t-axis" text-anchor="middle">x  (avant → arrière)</text>
+    <line x1="106" y1="195" x2="106" y2="123" stroke="#555" stroke-width="0.4" marker-end="url(#arrow)"/>
+    <text x="105" y="159" class="t-axis" text-anchor="end">z</text>
+  </g>
+
+  <!-- ══════════════════════════════════════════════════
+       LÉGENDE DES COULEURS / POUVOIRS
+       Zone : x=[262, 392], y=[25, 210]
+       ══════════════════════════════════════════════════ -->
+  <g id="legend">
+    <text x="327" y="30" class="t-section" text-anchor="middle">Couleurs et pouvoirs</text>
+
+    <!-- Ligne séparatrice verticale -->
+    <line x1="258" y1="25" x2="258" y2="210" class="sep"/>
+
+    <!-- Chaque entrée : carré couleur + nom + caractéristique + pouvoir -->
+    <!-- Rouge -->
+    <rect x="262" y="36" width="14" height="14" fill="#EF4444" class="c-patch"/>
+    <text x="280" y="43" class="t-label" font-weight="bold">Rouge</text>
+    <text x="280" y="48" class="t-small">Vitesse max · Pouvoir : Aspiration</text>
+
+    <!-- Vert -->
+    <rect x="262" y="57" width="14" height="14" fill="#22C55E" class="c-patch"/>
+    <text x="280" y="64" class="t-label" font-weight="bold">Vert</text>
+    <text x="280" y="69" class="t-small">Adhérence · Pouvoir : Phares</text>
+
+    <!-- Bleu -->
+    <rect x="262" y="78" width="14" height="14" fill="#3B82F6" class="c-patch"/>
+    <text x="280" y="85" class="t-label" font-weight="bold">Bleu</text>
+    <text x="280" y="90" class="t-small">Accélération · Pouvoir : Sillage</text>
+
+    <!-- Orange -->
+    <rect x="262" y="99" width="14" height="14" fill="#F97316" class="c-patch"/>
+    <text x="280" y="106" class="t-label" font-weight="bold">Orange</text>
+    <text x="280" y="111" class="t-small">Bouclier frontal</text>
+
+    <!-- Violet -->
+    <rect x="262" y="120" width="14" height="14" fill="#A855F7" class="c-patch"/>
+    <text x="280" y="127" class="t-label" font-weight="bold">Violet</text>
+    <text x="280" y="132" class="t-small">Attraction (V2)</text>
+
+    <!-- Rose -->
+    <rect x="262" y="141" width="14" height="14" fill="#EC4899" class="c-patch"/>
+    <text x="280" y="148" class="t-label" font-weight="bold">Rose</text>
+    <text x="280" y="153" class="t-small">Soin (V2)</text>
+
+    <!-- Note règle de coloriage -->
+    <rect x="262" y="162" width="128" height="22" rx="2" fill="#fafafa" stroke="#ddd" stroke-width="0.3"/>
+    <text x="326" y="170" class="t-small" text-anchor="middle">Colorie les cases : chaque couleur</text>
+    <text x="326" y="176" class="t-small" text-anchor="middle">détermine les stats de ton véhicule.</text>
+    <text x="326" y="182" class="t-small" text-anchor="middle">Les cases blanches = vide.</text>
+  </g>
+
+  <!-- ══════════════════════════════════════════════════
+       PATCH DE RÉFÉRENCE COULEUR
+       Zone : x=[28, 252], y=[210, 255]
+       6 carrés 22×22mm, espacement 4mm → pas=26mm
+       ══════════════════════════════════════════════════ -->
+  <g id="patch-couleur">
+    <line x1="28" y1="208" x2="392" y2="208" class="sep"/>
+    <text x="28" y="215" class="t-section">Patch de référence couleur — coller ici les feutres utilisés</text>
+
+    <!-- Rouge : x=[28, 50] -->
+    <rect x="28"  y="220" width="22" height="22" fill="#EF4444" class="c-patch"/>
+    <text x="39"  y="248" class="t-label" text-anchor="middle">Rouge</text>
+
+    <!-- Vert : x=[54, 76] -->
+    <rect x="54"  y="220" width="22" height="22" fill="#22C55E" class="c-patch"/>
+    <text x="65"  y="248" class="t-label" text-anchor="middle">Vert</text>
+
+    <!-- Bleu : x=[80, 102] -->
+    <rect x="80"  y="220" width="22" height="22" fill="#3B82F6" class="c-patch"/>
+    <text x="91"  y="248" class="t-label" text-anchor="middle">Bleu</text>
+
+    <!-- Orange : x=[106, 128] -->
+    <rect x="106" y="220" width="22" height="22" fill="#F97316" class="c-patch"/>
+    <text x="117" y="248" class="t-label" text-anchor="middle">Orange</text>
+
+    <!-- Violet : x=[132, 154] -->
+    <rect x="132" y="220" width="22" height="22" fill="#A855F7" class="c-patch"/>
+    <text x="143" y="248" class="t-label" text-anchor="middle">Violet</text>
+
+    <!-- Rose : x=[158, 180] -->
+    <rect x="158" y="220" width="22" height="22" fill="#EC4899" class="c-patch"/>
+    <text x="169" y="248" class="t-label" text-anchor="middle">Rose</text>
+
+    <!-- Texte indicatif côté droit -->
+    <text x="195" y="229" class="t-small">← Appuie ton feutre</text>
+    <text x="195" y="235" class="t-small">   sur chaque carré</text>
+    <text x="195" y="241" class="t-small">   pour la calibration</text>
+    <text x="195" y="247" class="t-small">   automatique.</text>
+  </g>
+
+  <!-- ══════════════════════════════════════════════════
+       QR CODES (Story 0.2)
+       35×35mm à chaque coin, marge 4mm
+       TL : (4, 4)  TR : (381, 4)
+       BL : (4,258)  BR : (381,258)
+       ══════════════════════════════════════════════════ -->
+
+  <!-- TL — popvroum-vehicle-tl -->
+  <image id="qr-tl" href="./qr-codes/popvroum-vehicle-tl.png"
+         x="4" y="4" width="35" height="35"
+         image-rendering="crisp-edges"/>
+
+  <!-- TR — popvroum-vehicle-tr -->
+  <image id="qr-tr" href="./qr-codes/popvroum-vehicle-tr.png"
+         x="381" y="4" width="35" height="35"
+         image-rendering="crisp-edges"/>
+
+  <!-- BL — popvroum-vehicle-bl -->
+  <image id="qr-bl" href="./qr-codes/popvroum-vehicle-bl.png"
+         x="4" y="258" width="35" height="35"
+         image-rendering="crisp-edges"/>
+
+  <!-- BR — popvroum-vehicle-br -->
+  <image id="qr-br" href="./qr-codes/popvroum-vehicle-br.png"
+         x="381" y="258" width="35" height="35"
+         image-rendering="crisp-edges"/>
+
+</svg>

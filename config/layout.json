@@ -1,0 +1,48 @@
+{
+  "_commentaire": [
+    "Coordonnées calculées depuis feuille-vehicule-A3.svg (viewBox 420×297mm, 1 unité = 1mm).",
+    "QR codes 35×35mm : TL(4,4) TR(381,4) BL(4,258) BR(381,258).",
+    "Centres QR : TL=(21.5,21.5) BR=(398.5,275.5) → span 377×254mm.",
+    "Échelle : 1200/377 = 3.183 px/mm (identique en X et Y).",
+    "vehicleSheet : 1200×808 px (377mm × 254mm à 3.183 px/mm).",
+    "Formule : outX = round((svgX - 21.5) * 3.183), outY = round((svgY - 21.5) * 3.183)"
+  ],
+  "vehicleSheet": {
+    "width": 1200,
+    "height": 808,
+    "regions": {
+      "face":    { "x": 21,  "y": 323, "w": 229, "h": 229, "cols": 4, "rows": 4 },
+      "profile": { "x": 282, "y":  59, "w": 458, "h": 229, "cols": 8, "rows": 4 },
+      "top":     { "x": 282, "y": 323, "w": 458, "h": 229, "cols": 8, "rows": 4 },
+      "patch":   { "x": 21,  "y": 632, "w": 484, "h":  70 }
+    }
+  },
+  "vehicleSheetV2": {
+    "_commentaire": [
+      "Coordonnées pixel pour la feuille sandwich v2 (A4 paysage 297×210mm).",
+      "QR codes 30×30mm : TL(4,4) TR(263,4) BL(4,176) BR(263,176).",
+      "Centres QR : TL=(19,19) TR=(278,19) BL=(19,191) BR=(278,191) → span 259×172mm.",
+      "Output image : 1200×797 px. Formule : outX=round((svgX-19)/259*1200), outY=round((svgY-19)/172*797)",
+      "Grilles SVG : y=[50,170]mm → output y=[144,700]px, hauteur=556px.",
+      "Grille 1 x=37mm→83px, Grille 2 x=94mm→347px, Grille 3 x=151mm→611px, Grille 4 x=208mm→875px.",
+      "Largeur grille 52mm → 241px. Patch SVG x=[36,90]mm, y=[184,198]mm.",
+      "IMPORTANT : calibrer x/y/w/h après test avec une vraie impression."
+    ],
+    "width": 1200,
+    "height": 797,
+    "slices": [
+      { "label": "dessous",     "x":  83, "y": 144, "w": 241, "h": 556, "cols": 4, "rows": 8 },
+      { "label": "milieu-bas",  "x": 347, "y": 144, "w": 241, "h": 556, "cols": 4, "rows": 8 },
+      { "label": "milieu-haut", "x": 611, "y": 144, "w": 241, "h": 556, "cols": 4, "rows": 8 },
+      { "label": "dessus",      "x": 875, "y": 144, "w": 241, "h": 556, "cols": 4, "rows": 8 }
+    ],
+    "patch": { "x": 79, "y": 764, "w": 250, "h": 65 }
+  },
+  "blockSheet": {
+    "width": 1200,
+    "height": 808,
+    "regions": {
+      "grid": { "x": 200, "y": 100, "w": 800, "h": 600, "cols": 8, "rows": 8 }
+    }
+  }
+}

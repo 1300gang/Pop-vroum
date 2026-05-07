@@ -1,0 +1,94 @@
+{
+  "vehicleStats": {
+    "baseSpeed": 5.0,
+    "baseGrip": 1.0,
+    "baseAccel": 2.0,
+    "speedPerRedVoxel": 0.5,
+    "gripPerGreenVoxel": 0.3,
+    "accelPerBlueVoxel": 0.4
+  },
+  "powers": {
+    "aspiration": {
+      "magnitudePerRedVoxel": 0.5,
+      "boostStrength": 1.3
+    },
+    "phares": {
+      "magnitudePerGreenVoxel": 0.3,
+      "gripBoost": 1.2
+    },
+    "sillage": {
+      "magnitudePerBlueVoxel": 0.4,
+      "lifetimeSec": 7,
+      "accelBoost": 1.2
+    },
+    "shield": {
+      "magnitudePerOrangeVoxel": 0.4,
+      "absorption": 0.7
+    },
+    "arrow": {
+      "blinkIntervalBase": 5.0,
+      "blinkIntervalMin":  1.0,
+      "maxPharesValue":    15,
+      "height":            2.0,
+      "headRadius":        0.3,
+      "headLength":        0.55,
+      "shaftLength":       0.35,
+      "shaftWidth":        0.12
+    },
+    "attraction": {
+      "magnitudePerVioletVoxel": 0.3,
+      "pullStrength": 0.8
+    },
+    "heal": {
+      "magnitudePerPinkVoxel": 0.2,
+      "healAmount": 1.0
+    }
+  },
+  "physics": {
+    "turnRate": 2.2,
+    "driftThreshold": 1.6,
+    "driftFriction": 0.72,
+    "brakingDecel": 18.0,
+    "naturalDecel": 4.0,
+    "accelRate": 6.0,
+
+    "mass":                800,
+    "engineBase":          2500,
+    "gripBase":            12.0,
+    "dragCoeff":           1.8,
+    "vmaxGlobal":          35.0,
+    "turnSpeed":           3.5,
+    "driftGripMultiplier": 0.20,
+    "driftThresholdFactor":1.2,
+    "minDriftSpeed":       3.0,
+    "driftRotationBoost":  0.8,
+    "restitution":         0.5,
+    "accelGripTransfer":   0.15,
+    "brakeGripTransfer":   0.20
+  },
+  "surfaceGrip": {
+    "dur":    1.0,
+    "ramp":   1.0,
+    "sticky": 1.8,
+    "boost":  0.6
+  },
+  "cohesion": {
+    "radiusUnits": 8,
+    "fullThreshold": 0.8,
+    "fullBonusMultiplier": 1.15
+  },
+  "map": {
+    "gridCols": 8,
+    "gridRows": 8,
+    "blockScale": 2
+  },
+  "match": {
+    "playerCount": [2, 3, 4, 5],
+    "obstacleScaleByCount": {
+      "2": 0.5,
+      "3": 0.7,
+      "4": 0.85,
+      "5": 1.0
+    }
+  }
+}

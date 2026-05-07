@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Pop Vroum — Scanner</title>
+  <link rel="stylesheet" href="css/shared.css">
+  <link rel="stylesheet" href="css/scan.css">
+</head>
+<body>
+
+  <!-- Zone principale : flux caméra en direct -->
+  <div id="zone-camera">
+    <video id="video-camera" playsinline autoplay muted></video>
+    <div id="message-erreur">
+      <span id="message-erreur-texte"></span>
+      <button id="btn-fermer-erreur" aria-label="Fermer">✕ Réessayer</button>
+    </div>
+    <div id="message-chargement">Démarrage de la caméra…</div>
+    <!-- Compteur QR discret (haut gauche) -->
+    <div id="qr-compteur" aria-live="polite">0 / 4 QR</div>
+    <!-- Anneau de beat visible en mode auto-scan -->
+    <div id="beat-ring" aria-hidden="true"></div>
+    <!-- Statut auto-scan (bas centre, visible uniquement en mode auto) -->
+    <div id="statut-auto" aria-live="polite" hidden></div>
+  </div>
+
+  <!-- Flash de capture — overlay plein écran blanc, opacity 0→1→0 en 150 ms -->
+  <div id="flash-capture" aria-hidden="true"></div>
+
+  <!-- Barre de contrôles -->
+  <div id="controles">
+    <button id="btn-scan-complet">Scanner</button>
+    <button id="btn-auto-scan" title="Lance un scan automatique au rythme de 135 BPM">Auto</button>
+    <button id="btn-switch-cam" title="Changer de caméra">📷</button>
+    <button id="btn-toggle-debug">Mode debug</button>
+    <span id="opencv-statut" title="Correction de perspective">✓ PerspT</span>
+    <a href="scan2.html" style="font-size:0.75rem;color:#aaa;align-self:center;text-decoration:none"
+       title="Essayer la feuille sandwich v2">🥪 v2</a>
+  </div>
+
+  <!-- Panneau debug (masqué par défaut) -->
+  <section id="panneau-debug" class="cache">
+    <h2>Debug — Pipeline</h2>
+
+    <!-- Mosaïque visuelle (debug-view.js) -->
+    <div id="debug-mosaique"></div>
+
+    <div class="debug-groupe">
+      <h3>1. Capture</h3>
+      <button id="btn-capture">Capturer une frame</button>
+      <p id="debug-info-capture"></p>
+    </div>
+
+    <div class="debug-groupe">
+      <h3>2. Détection QR</h3>
+      <button id="btn-detect-qr">Détecter les QR codes</button>
+      <p id="debug-info-qr"></p>
+    </div>
+
+    <div class="debug-groupe">
+      <h3>3. Redressement de perspective</h3>
+      <button id="btn-warp">Redresser la feuille</button>
+      <p id="debug-info-warp"></p>
+    </div>
+
+    <div class="debug-groupe">
+      <h3>4. Segmentation</h3>
+      <button id="btn-segment">Découper les zones</button>
+      <p id="debug-info-segment"></p>
+    </div>
+
+    <div class="debug-groupe">
+      <h3>5. Calibration patch</h3>
+      <button id="btn-calibrate">Calibrer les couleurs</button>
+      <p id="debug-info-calibrate"></p>
+    </div>
+
+    <div class="debug-groupe">
+      <h3>6. Lecture couleurs</h3>
+      <button id="btn-read-colors">Lire les grilles</button>
+      <p id="debug-info-colors"></p>
+    </div>
+
+    <div class="debug-groupe">
+      <h3>7. Voxel &amp; validation</h3>
+      <button id="btn-build-voxel">Construire le voxel</button>
+      <p id="debug-info-voxel"></p>
+    </div>
+
+    <canvas id="canvas-debug"></canvas>
+  </section>
+
+  <!-- Panneau réglage HSL manuel — visible indépendamment du mode debug -->
+  <section id="panneau-tuner">
+    <div id="panneau-tuner-header">
+      <h2>🎨 Réglage couleurs</h2>
+      <button id="btn-toggle-tuner">Afficher</button>
+    </div>
+    <div id="tuner-contenu" class="cache">
+      <!-- Injecté par manual-hsl-tuner.js -->
+    </div>
+  </section>
+
+  <!-- ========================================================
+       Écran de validation post-scan (Story 2.5)
+       ======================================================== -->
+  <div id="ecran-validation" class="cache" aria-hidden="true">
+
+    <!-- Vue 3D du véhicule -->
+    <div id="validation-3d">
+      <canvas id="canvas-validation"></canvas>
+    </div>
+
+    <!-- Panneau d'informations -->
+    <div id="validation-infos">
+
+      <div id="validation-pseudo">
+        <label for="input-pseudo">Ton prénom</label>
+        <input id="input-pseudo" type="text" maxlength="20"
+               placeholder="Ex : Sami" autocomplete="off" spellcheck="false">
+      </div>
+
+      <div id="validation-stats">
+        <h2>Caractéristiques</h2>
+        <div class="stat-ligne" id="stat-vitesse">
+          <span class="stat-icone">🔴</span>
+          <span class="stat-nom">Vitesse</span>
+          <div class="stat-barre-wrap">
+            <div class="stat-barre" style="--couleur:#e62020"></div>
+          </div>
+          <span class="stat-val"></span>
+        </div>
+        <div class="stat-ligne" id="stat-adherence">
+          <span class="stat-icone">🟢</span>
+          <span class="stat-nom">Adhérence</span>
+          <div class="stat-barre-wrap">
+            <div class="stat-barre" style="--couleur:#1fa830"></div>
+          </div>
+          <span class="stat-val"></span>
+        </div>
+        <div class="stat-ligne" id="stat-accel">
+          <span class="stat-icone">🔵</span>
+          <span class="stat-nom">Accélération</span>
+          <div class="stat-barre-wrap">
+            <div class="stat-barre" style="--couleur:#1a52e0"></div>
+          </div>
+          <span class="stat-val"></span>
+        </div>
+      </div>
+
+      <div id="validation-pouvoirs">
+        <h2>Pouvoirs</h2>
+        <div id="pouvoirs-liste">
+          <!-- Injecté par scan-page.js -->
+        </div>
+      </div>
+
+      <div id="validation-actions">
+        <button id="btn-rescanner">↩ Re-scanner</button>
+        <button id="btn-valider">Valider !</button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Libs légères : jsQR (~250Ko) + PerspT (~4Ko) -->
+  <script src="js/lib/jsqr.js"></script>
+  <script src="js/lib/perspective-transform.min.js"></script>
+  <script type="module" src="js/pages/scan-page.js"></script>
+</body>
+</html>

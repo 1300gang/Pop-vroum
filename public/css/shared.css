@@ -1,0 +1,41 @@
+:root {
+  --couleur-fond: #1a1a2e;
+  --couleur-texte: #e0e0e0;
+  --couleur-accent: #f5a623;
+  --couleur-rouge: #e74c3c;
+  --couleur-vert: #2ecc71;
+  --couleur-bleu: #3498db;
+  --couleur-orange: #e67e22;
+  --couleur-violet: #9b59b6;
+  --couleur-rose: #e91e8c;
+  --rayon-bord: 8px;
+  --police: 'Arial', sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background-color: var(--couleur-fond);
+  color: var(--couleur-texte);
+  font-family: var(--police);
+  min-height: 100vh;
+}
+
+button {
+  cursor: pointer;
+  border: none;
+  border-radius: var(--rayon-bord);
+  padding: 0.75rem 1.5rem;
+  font-size: 1rem;
+  background-color: var(--couleur-accent);
+  color: #000;
+  font-weight: bold;
+}
+
+button:hover {
+  opacity: 0.85;
+}

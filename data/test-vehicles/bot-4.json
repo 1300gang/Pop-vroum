@@ -1,0 +1,9 @@
+{
+  "id": "bot-4",
+  "nom": "Orange Bouclier",
+  "couleur": "orange",
+  "couleurHex": "#f07418",
+  "palette": ["orange", "red"],
+  "stats": { "speed": 7.5, "grip": 5.5, "accel": 5.5 },
+  "powers": { "aspiration": 2, "phares": 1, "sillage": 0, "shield": 9 }
+}

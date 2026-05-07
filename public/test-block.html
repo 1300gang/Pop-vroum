@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pop Vroum — Test block/builder (Story 6.1)</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #1a1a2e; color: #e0e0e0; font-family: monospace; display: flex; flex-direction: column; height: 100vh; }
+    h1 { color: #f5a623; padding: 1rem; font-size: 1rem; }
+    #controls { padding: 0 1rem 0.5rem; display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center; }
+    button {
+      background: #0f0f23; border: 1px solid #444; color: #e0e0e0;
+      padding: 0.4rem 0.8rem; border-radius: 4px; cursor: pointer; font-family: monospace;
+    }
+    button:hover { border-color: #f5a623; color: #f5a623; }
+    label { font-size: 0.85rem; display: flex; align-items: center; gap: 0.4rem; cursor: pointer; }
+    #canvas-wrap { flex: 1; position: relative; }
+    #cv { width: 100%; height: 100%; display: block; }
+    #log { position: absolute; bottom: 0; left: 0; right: 0; background: rgba(0,0,0,0.6);
+           font-size: 0.75rem; padding: 0.5rem 1rem; max-height: 7rem; overflow-y: auto; }
+    .ok  { color: #2ecc71; }
+    .ko  { color: #e74c3c; }
+    .info { color: #74b9ff; }
+  </style>
+</head>
+<body>
+  <h1>Pop Vroum — Test block/builder (Story 6.1) — glisser pour orbiter</h1>
+  <div id="controls">
+    <button id="btn-ramp">Bloc Rampe</button>
+    <button id="btn-sticky">Zone collante</button>
+    <button id="btn-boost">Boost lane</button>
+    <button id="btn-mixte">Mixte complet</button>
+    <button id="btn-vide">Bloc vide</button>
+    <label><input type="checkbox" id="chk-rotate" checked> Rotation auto</label>
+  </div>
+  <div id="canvas-wrap">
+    <canvas id="cv"></canvas>
+    <div id="log"><span class="info">Chargement…</span></div>
+  </div>
+
+  <script type="module">
+    import * as THREE from '/js/lib/three.module.js';
+    import { buildBlock, PHYSICS, onDebugResult } from '/js/modules/block/builder.js';
+    import { createBlockRenderer } from '/js/modules/block/renderer.js';
+
+    // ---- Blocs de test ----
+    const BLOCS = {
+      'ramp': {
+        id: 'test_ramp', name: 'Rampe', atelier: 'test',
+        grid: [
+          ['dur', null, null, null, null, null, null, 'dur'],
+          ['dur', null, null, null, null, null, null, 'dur'],
+          ['dur', null, null, null, null, null, null, 'dur'],
+          ['dur', 'ramp', 'ramp', 'ramp', 'ramp', 'ramp', 'ramp', 'dur'],
+          ['dur', 'ramp', 'ramp', 'ramp', 'ramp', 'ramp', 'ramp', 'dur'],
+          ['dur', null, null, null, null, null, null, 'dur'],
+          ['dur', null, null, null, null, null, null, 'dur'],
+          ['dur', null, null, null, null, null, null, 'dur'],
+        ],
+      },
+      'sticky': {
+        id: 'test_sticky', name: 'Zone collante', atelier: 'test',
+        grid: [
+          ['dur', null, null, null, null, null, null, 'dur'],
+          ['dur', null, null, null, null, null, null, 'dur'],
+          ['dur', null, 'sticky', 'sticky', 'sticky', 'sticky', null, 'dur'],
+          ['dur', null, 'sticky', 'sticky', 'sticky', 'sticky', null, 'dur'],
+          ['dur', null, 'sticky', 'sticky', 'sticky', 'sticky', null, 'dur'],
+          ['dur', null, 'sticky', 'sticky', 'sticky', 'sticky', null, 'dur'],
+          ['dur', null, null, null, null, null, null, 'dur'],
+          ['dur', null, null, null, null, null, null, 'dur'],
+        ],
+      },
+      'boost': {
+        id: 'test_boost', name: 'Boost lane', atelier: 'test',
+        grid: [
+          [null, null, null, null, null, null, null, null],
+          [null, null, null, null, null, null, null, null],
+          [null, 'boost', 'boost', 'boost', 'boost', 'boost', 'boost', null],
+          [null, 'boost', 'boost', 'boost', 'boost', 'boost', 'boost', null],
+          [null, 'boost', 'boost', 'boost', 'boost', 'boost', 'boost', null],
+          [null, 'boost', 'boost', 'boost', 'boost', 'boost', 'boost', null],
+          [null, null, null, null, null, null, null, null],
+          [null, null, null, null, null, null, null, null],
+        ],
+      },
+      'mixte': {
+        id: 'test_mixte', name: 'Mixte complet', atelier: 'test',
+        grid: [
+          ['dur', null, null, null, null, null, null, 'dur'],
+          ['dur', null, 'boost', 'boost', 'boost', null, null, 'dur'],
+          ['dur', null, null, 'sticky', 'sticky', null, null, 'dur'],
+          ['dur', null, null, 'sticky', null, null, null, 'dur'],
+          ['dur', null, null, null, null, 'ramp', null, 'dur'],
+          ['dur', null, null, null, null, 'ramp', null, 'dur'],
+          ['dur', null, null, null, null, null, null, 'dur'],
+          ['dur', null, null, null, null, null, null, 'dur'],
+        ],
+      },
+      'vide': {
+        id: 'test_vide', name: 'Bloc vide', atelier: 'test',
+        grid: Array.from({ length: 8 }, () => Array(8).fill(null)),
+      },
+    };
+
+    // ---- Rendu ----
+    const canvas = document.getElementById('cv');
+    const ctrl   = createBlockRenderer(canvas, BLOCS['ramp']);
+    ctrl.setAutoRotate(true);
+
+    function _resize() {
+      canvas.width  = canvas.clientWidth;
+      canvas.height = canvas.clientHeight;
+      ctrl.resize();
+    }
+    window.addEventListener('resize', _resize);
+    _resize();
+
+    // ---- Drag orbital (souris) ----
+    let _drag = false, _lastX = 0;
+    canvas.addEventListener('mousedown', e => { _drag = true; _lastX = e.clientX; });
+    canvas.addEventListener('mouseup',   () => { _drag = false; });
+    canvas.addEventListener('mousemove', e => {
+      if (!_drag) return;
+      // TODO : relier à l'angle d'orbite du renderer (non exposé pour l'instant)
+      _lastX = e.clientX;
+    });
+
+    // ---- Callbacks debug ----
+    onDebugResult(data => {
+      _log(`<span class="info">Bloc chargé — ${data.cellCount} cases — ramp:${data.compteurs.ramp} sticky:${data.compteurs.sticky} dur:${data.compteurs.dur} boost:${data.compteurs.boost} floor:${data.compteurs.floor}</span>`);
+      // Vérification PHYSICS
+      let ok = true;
+      for (const key of ['ramp', 'sticky', 'hard', 'boost']) {
+        if (!PHYSICS[key]) { ok = false; _log(`<span class="ko">PHYSICS['${key}'] manquant</span>`); }
+      }
+      if (ok) _log('<span class="ok">PHYSICS : tous les types définis ✓</span>');
+    });
+
+    // ---- Boutons ----
+    for (const [key, label] of [['ramp','Rampe'],['sticky','Collant'],['boost','Boost'],['mixte','Mixte'],['vide','Vide']]) {
+      const btn = document.getElementById(`btn-${key}`);
+      if (btn) btn.addEventListener('click', () => {
+        ctrl.setBlock(BLOCS[key]);
+        _log(`<span class="info">→ Bloc "${BLOCS[key].name}"</span>`);
+      });
+    }
+
+    document.getElementById('chk-rotate').addEventListener('change', e => {
+      ctrl.setAutoRotate(e.target.checked);
+    });
+
+    // ---- Log ----
+    function _log(html) {
+      const el = document.getElementById('log');
+      el.innerHTML += `<div>${html}</div>`;
+      el.scrollTop = el.scrollHeight;
+    }
+
+    _log('<span class="ok">block/builder + block/renderer chargés ✓</span>');
+    _log('<span class="info">Bloc initial : Rampe (seed)</span>');
+  </script>
+</body>
+</html>

@@ -1,0 +1,329 @@
+/* Styles page galerie — Story 7.2 */
+
+/* ---- Structure générale ---- */
+
+body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 1.5rem 1rem 4rem;
+  gap: 1.5rem;
+}
+
+/* ---- En-tête ---- */
+
+#entete {
+  text-align: center;
+}
+
+#entete h1 {
+  font-size: 2rem;
+  font-weight: bold;
+  color: var(--couleur-accent);
+  letter-spacing: 0.05em;
+}
+
+#sous-titre {
+  margin-top: 0.3rem;
+  font-size: 0.9rem;
+  color: #888;
+}
+
+/* ---- Barre d'action ---- */
+
+#barre-action {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.btn-nouveau-scan {
+  display: inline-block;
+  padding: 0.6rem 1.2rem;
+  background: var(--couleur-accent);
+  color: #000;
+  font-weight: bold;
+  border-radius: var(--rayon-bord);
+  text-decoration: none;
+  font-size: 0.95rem;
+  transition: opacity 0.15s;
+}
+
+.btn-nouveau-scan:hover { opacity: 0.85; }
+
+#compteur-vehicules {
+  font-size: 0.9rem;
+  color: #888;
+}
+
+/* ---- État vide ---- */
+
+#etat-vide {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  margin-top: 3rem;
+  text-align: center;
+  color: #aaa;
+}
+
+#etat-vide-icone {
+  font-size: 4rem;
+  margin-bottom: 0.5rem;
+}
+
+.btn-primaire {
+  display: inline-block;
+  padding: 0.75rem 1.5rem;
+  background: var(--couleur-accent);
+  color: #000;
+  font-weight: bold;
+  border-radius: var(--rayon-bord);
+  text-decoration: none;
+  font-size: 1rem;
+}
+
+.btn-primaire:hover { opacity: 0.85; }
+
+/* ---- Grille de vignettes ---- */
+
+#grille-galerie {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 1rem;
+  width: 100%;
+  max-width: 900px;
+}
+
+/* ---- Vignette ---- */
+
+.vignette {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: rgba(255, 255, 255, 0.05);
+  border: 2px solid rgba(255, 255, 255, 0.1);
+  border-radius: var(--rayon-bord);
+  padding: 0.75rem;
+  gap: 0.5rem;
+  cursor: pointer;
+  transition: border-color 0.2s, transform 0.15s;
+  user-select: none;
+}
+
+.vignette:hover {
+  border-color: var(--couleur-accent);
+  transform: translateY(-2px);
+}
+
+.vignette:active {
+  transform: translateY(0);
+}
+
+.vignette canvas {
+  width: 140px;
+  height: 110px;
+  border-radius: 4px;
+  background: #111;
+  display: block;
+}
+
+.vignette-pseudo {
+  font-size: 0.85rem;
+  font-weight: bold;
+  color: var(--couleur-texte);
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 136px;
+}
+
+.vignette-date {
+  font-size: 0.75rem;
+  color: #666;
+  text-align: center;
+}
+
+/* ---- Modale ---- */
+
+#modale,
+#modale-confirmation {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+}
+
+#modale-fond,
+#confirmation-fond {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(4px);
+}
+
+#modale-contenu {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: #1e1e3a;
+  border: 2px solid rgba(255, 255, 255, 0.15);
+  border-radius: 12px;
+  padding: 1.5rem;
+  gap: 1rem;
+  width: min(90vw, 480px);
+  z-index: 1;
+}
+
+#canvas-modale {
+  width: 100%;
+  max-width: 400px;
+  height: 300px;
+  border-radius: 8px;
+  background: #111;
+  display: block;
+  touch-action: none;
+}
+
+#btn-fermer-modale {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+  font-size: 1.1rem;
+  padding: 0.3rem 0.6rem;
+  border-radius: 50%;
+  line-height: 1;
+  transition: background 0.15s;
+}
+
+#btn-fermer-modale:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+/* ---- Infos véhicule dans modale ---- */
+
+#modale-infos {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+#modale-pseudo {
+  font-size: 1.2rem;
+  font-weight: bold;
+  color: var(--couleur-accent);
+  text-align: center;
+}
+
+#modale-date {
+  font-size: 0.8rem;
+  color: #666;
+  text-align: center;
+}
+
+#modale-stats {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.25rem;
+}
+
+.stat-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: bold;
+  background: rgba(255, 255, 255, 0.07);
+}
+
+/* ---- Actions de la modale ---- */
+
+#modale-actions {
+  display: flex;
+  gap: 0.6rem;
+  margin-top: 0.25rem;
+}
+
+.btn-jouer {
+  flex: 1;
+  background: var(--couleur-vert, #1fa830);
+  color: #fff;
+  font-size: 0.95rem;
+  font-weight: 700;
+  padding: 0.6rem 1rem;
+  border-radius: 8px;
+  transition: opacity 0.15s, transform 0.1s;
+  cursor: pointer;
+  border: none;
+}
+
+.btn-jouer:hover  { opacity: 0.88; }
+.btn-jouer:active { transform: scale(0.97); }
+
+/* ---- Bouton supprimer ---- */
+
+.btn-supprimer {
+  background: var(--couleur-rouge);
+  color: #fff;
+  font-size: 0.9rem;
+  padding: 0.5rem 1rem;
+  transition: opacity 0.15s;
+}
+
+.btn-supprimer:hover { opacity: 0.8; }
+
+/* ---- Confirmation suppression ---- */
+
+#confirmation-contenu {
+  position: relative;
+  background: #1e1e3a;
+  border: 2px solid rgba(255, 255, 255, 0.15);
+  border-radius: 12px;
+  padding: 2rem;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  z-index: 1;
+  width: min(90vw, 360px);
+}
+
+#confirmation-contenu p {
+  font-size: 1.1rem;
+  font-weight: bold;
+}
+
+#confirmation-sous-texte {
+  font-size: 0.85rem;
+  color: #888;
+  font-weight: normal !important;
+}
+
+#confirmation-boutons {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: center;
+}
+
+#btn-annuler-suppression {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--couleur-texte);
+}
+
+/* ---- Utilitaires ---- */
+
+.cache { display: none !important; }

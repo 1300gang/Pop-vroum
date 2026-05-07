@@ -1,0 +1,774 @@
+/* ---- Layout page scanner ---- */
+
+/* Bouton scan principal */
+#btn-scan-complet {
+  flex: 1;
+  background: var(--couleur-accent);
+  color: #000;
+  font-weight: bold;
+  font-size: 1rem;
+  letter-spacing: 0.04em;
+}
+
+/* Bouton changer de caméra */
+#btn-switch-cam {
+  flex: 0 0 auto;
+  background: transparent;
+  border: 1px solid #555;
+  color: #aaa;
+  font-size: 1rem;
+  padding: 0.4rem 0.65rem;
+  border-radius: var(--rayon-bord);
+}
+
+#btn-switch-cam:hover { border-color: #aaa; }
+
+/* Bouton auto-scan */
+#btn-auto-scan {
+  flex: 0 0 auto;
+  background: transparent;
+  border: 1px solid #555;
+  color: #aaa;
+  font-size: 0.85rem;
+  padding: 0.5rem 0.8rem;
+  border-radius: var(--rayon-bord);
+  transition: background 0.2s, color 0.2s, border-color 0.2s;
+}
+
+#btn-auto-scan.actif {
+  background: #1a1a1a;
+  border-color: var(--couleur-accent);
+  color: var(--couleur-accent);
+}
+
+/* Anneau de beat — cercle qui pulse sur la zone caméra */
+#beat-ring {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 10;
+  border: 3px solid transparent;
+  transition: border-color 0.08s ease;
+}
+
+#beat-ring.qr-ok {
+  border-color: #2ecc71;
+}
+
+#beat-ring.qr-partiel {
+  border-color: var(--couleur-accent);
+}
+
+#beat-ring.pulse {
+  animation: beat-pulse 0.18s ease-out forwards;
+}
+
+@keyframes beat-pulse {
+  0%   { opacity: 1; }
+  100% { opacity: 0.3; }
+}
+
+/* Statut auto-scan — bas centre de la zone caméra */
+#statut-auto {
+  position: absolute;
+  bottom: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.65);
+  color: #fff;
+  font-size: 0.95rem;
+  font-weight: 600;
+  padding: 6px 18px;
+  border-radius: 20px;
+  pointer-events: none;
+  z-index: 15;
+  white-space: nowrap;
+}
+
+/* Flash de capture — overlay plein écran blanc */
+#flash-capture {
+  position: fixed;
+  inset: 0;
+  background: #fff;
+  opacity: 0;
+  pointer-events: none;
+  z-index: 200;
+}
+
+#flash-capture.actif {
+  animation: flash-shutter 0.15s ease-out forwards;
+}
+
+@keyframes flash-shutter {
+  0%   { opacity: 0; }
+  30%  { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+body {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  height: 100dvh; /* exclut la barre du navigateur sur mobile */
+  overflow: hidden;
+}
+
+/* Zone caméra : remplit tout l'espace restant */
+#zone-camera {
+  position: relative;
+  flex: 1;
+  min-height: 0; /* nécessaire pour que flex: 1 fonctionne avec overflow */
+  background: #000;
+  overflow: hidden;
+}
+
+/* Vidéo en plein cadre, recadrée sans déformation */
+#video-camera {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* Message de chargement au-dessus du flux */
+#message-chargement {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.7);
+  color: var(--couleur-accent);
+  font-size: 1.1rem;
+}
+
+#message-chargement.cache {
+  display: none;
+}
+
+/* Message d'erreur — toast semi-transparent en bas de la zone caméra */
+#message-erreur {
+  display: none;
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  background: rgba(180, 30, 20, 0.92);
+  color: #fff;
+  font-size: 1rem;
+  padding: 1rem 1.5rem 1.2rem;
+  text-align: center;
+  line-height: 1.5;
+  backdrop-filter: blur(4px);
+  animation: erreur-entree 0.2s ease;
+}
+
+@keyframes erreur-entree {
+  from { transform: translateY(100%); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+
+#message-erreur.visible {
+  display: flex;
+}
+
+#btn-fermer-erreur {
+  background: rgba(255,255,255,0.2);
+  border: 1px solid rgba(255,255,255,0.5);
+  color: #fff;
+  font-size: 0.9rem;
+  font-weight: bold;
+  padding: 0.5rem 1.5rem;
+  border-radius: var(--rayon-bord);
+  cursor: pointer;
+  width: 100%;
+  max-width: 260px;
+}
+
+#btn-fermer-erreur:hover {
+  background: rgba(255,255,255,0.35);
+}
+
+/* Compteur QR — pill discret en haut à gauche */
+#qr-compteur {
+  position: absolute;
+  top: 0.6rem;
+  left: 0.6rem;
+  background: rgba(0,0,0,0.55);
+  color: rgba(255,255,255,0.6);
+  font-size: 0.72rem;
+  font-family: monospace;
+  padding: 0.25rem 0.6rem;
+  border-radius: 20px;
+  border: 1px solid rgba(255,255,255,0.15);
+  pointer-events: none;
+  transition: color 0.2s, border-color 0.2s, background 0.2s;
+  letter-spacing: 0.05em;
+}
+
+#qr-compteur.partiel {
+  color: var(--couleur-accent);
+  border-color: var(--couleur-accent);
+  background: rgba(0,0,0,0.7);
+}
+
+#qr-compteur.complet {
+  color: #2ecc71;
+  border-color: #2ecc71;
+  background: rgba(0,0,0,0.7);
+  font-weight: bold;
+}
+
+/* Barre de contrôles */
+#controles {
+  padding: 0.75rem 1rem;
+  display: flex;
+  gap: 0.75rem;
+  background: #111;
+  border-top: 1px solid #333;
+}
+
+#controles button {
+  flex: 1;
+}
+
+/* Bouton debug : discret, petit, à droite */
+#btn-toggle-debug {
+  flex: 0 0 auto;
+  font-size: 0.7rem;
+  padding: 0.25rem 0.6rem;
+  opacity: 0.45;
+  background: transparent;
+  border: 1px solid #444;
+  color: #aaa;
+  border-radius: var(--rayon-bord);
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+#btn-toggle-debug:hover {
+  opacity: 1;
+}
+
+#opencv-statut {
+  font-size: 0.75rem;
+  opacity: 0.5;
+  align-self: center;
+  white-space: nowrap;
+}
+
+#opencv-statut.ok {
+  opacity: 1;
+  color: #2ecc71;
+}
+
+/* Panneau debug : visible par défaut */
+#panneau-debug {
+  display: block;
+  padding: 1rem;
+  background: #0f0f23;
+  border-top: 2px solid var(--couleur-accent);
+  overflow-y: auto;
+}
+
+#panneau-debug.cache {
+  display: none;
+}
+
+#panneau-debug h2 {
+  font-size: 0.9rem;
+  color: var(--couleur-accent);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 0.75rem;
+}
+
+.debug-groupe {
+  margin-bottom: 1rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid #222;
+}
+
+.debug-groupe h3 {
+  font-size: 0.8rem;
+  opacity: 0.5;
+  margin-bottom: 0.5rem;
+  font-weight: normal;
+}
+
+#panneau-debug button {
+  margin-bottom: 0.5rem;
+}
+
+#debug-info-capture {
+  font-size: 0.8rem;
+  opacity: 0.7;
+  margin-top: 0.4rem;
+}
+
+#debug-info-qr {
+  font-size: 0.8rem;
+  opacity: 0.85;
+  margin-top: 0.4rem;
+  line-height: 1.6;
+  font-family: monospace;
+}
+
+/* Labels de debug génériques */
+#debug-info-warp,
+#debug-info-segment,
+#debug-info-calibrate {
+  font-size: 0.8rem;
+  opacity: 0.85;
+  margin-top: 0.4rem;
+  line-height: 1.8;
+  font-family: monospace;
+}
+
+/* Petit carré de couleur inline dans les rapports calibration */
+.debug-color-dot {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 2px;
+  margin-right: 6px;
+  vertical-align: middle;
+  border: 1px solid rgba(255,255,255,0.3);
+}
+
+#canvas-debug {
+  max-width: 100%;
+  height: auto;
+  display: block;
+  border-radius: var(--rayon-bord);
+}
+
+/* ---- Mosaïque debug-view (Story 1.11) ---- */
+
+#debug-mosaique {
+  margin-bottom: 1rem;
+}
+
+.dv-mosaique {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+}
+
+/* Sur mobile portrait : 2 colonnes */
+@media (max-width: 600px) {
+  .dv-mosaique {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.dv-cellule {
+  background: #111;
+  border: 1px solid #222;
+  border-radius: 4px;
+  overflow: hidden;
+  position: relative;
+}
+
+.dv-cellule.dv-placeholder {
+  opacity: 0.35;
+}
+
+.dv-label {
+  font-size: 0.65rem;
+  padding: 3px 6px;
+  background: #0a0a18;
+  color: #aaa;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.dv-statut {
+  font-size: 0.6rem;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.dv-canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: 120px;
+  object-fit: contain;
+  background: #0a0a18;
+}
+
+.dv-ph-msg {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.65rem;
+  color: rgba(255,255,255,0.2);
+  pointer-events: none;
+}
+
+/* ---- Panneau réglage HSL manuel (Story 1.9) ---- */
+
+#panneau-tuner {
+  background: #0a0a1a;
+  border-top: 2px solid #444;
+  flex-shrink: 0;
+}
+
+#panneau-tuner-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.6rem 1rem;
+}
+
+#panneau-tuner-header h2 {
+  font-size: 0.85rem;
+  margin: 0;
+  flex: 1;
+  color: #ccc;
+}
+
+#btn-toggle-tuner {
+  font-size: 0.75rem;
+  padding: 0.25rem 0.75rem;
+}
+
+#tuner-contenu {
+  padding: 0.5rem 1rem 1rem;
+}
+
+#tuner-contenu.cache {
+  display: none;
+}
+
+/* Toolbar reset */
+.tuner-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 0.75rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid #222;
+}
+
+.tuner-note {
+  font-size: 0.7rem;
+  opacity: 0.5;
+  font-style: italic;
+}
+
+/* Grille des 6 couleurs */
+.tuner-grille {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.tuner-ligne {
+  background: #111;
+  border-radius: var(--rayon-bord);
+  padding: 0.5rem 0.75rem;
+  border: 1px solid #222;
+}
+
+.tuner-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.4rem;
+}
+
+/* Carré de référence (couleur théorique) */
+.tuner-ref {
+  width: 16px;
+  height: 16px;
+  border-radius: 3px;
+  flex-shrink: 0;
+  border: 1px solid rgba(255,255,255,0.2);
+}
+
+/* Carré de prévisualisation (couleur actuelle des sliders) */
+.tuner-preview {
+  width: 16px;
+  height: 16px;
+  border-radius: 3px;
+  flex-shrink: 0;
+  border: 1px solid rgba(255,255,255,0.4);
+  transition: background 0.1s;
+}
+
+.tuner-nom {
+  font-size: 0.8rem;
+  font-weight: bold;
+  min-width: 52px;
+}
+
+.tuner-valeurs {
+  font-size: 0.7rem;
+  font-family: monospace;
+  opacity: 0.6;
+  flex: 1;
+  text-align: right;
+}
+
+/* Sliders H, S, L */
+.tuner-sliders {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.tuner-sliders label {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.7rem;
+  opacity: 0.7;
+  flex: 1;
+}
+
+.tuner-sliders input[type="range"] {
+  flex: 1;
+  height: 4px;
+  accent-color: var(--couleur-accent);
+  cursor: pointer;
+}
+
+/* ====================================================
+   Écran de validation post-scan (Story 2.5)
+   ==================================================== */
+
+#ecran-validation {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  background: var(--couleur-fond);
+  opacity: 0;
+  transform: translateY(100%);
+  transition: opacity 0.4s ease, transform 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+  pointer-events: none;
+}
+
+#ecran-validation.cache {
+  display: none;
+}
+
+#ecran-validation.visible {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: all;
+}
+
+/* Vue 3D — prend la moitié haute sur portrait, moitié gauche sur paysage */
+#validation-3d {
+  flex: 1 1 50%;
+  position: relative;
+  min-height: 0;
+  background: #0d0d20;
+}
+
+#canvas-validation {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* Panneau infos — défile si trop long */
+#validation-infos {
+  flex: 0 0 auto;
+  max-height: 52vh;
+  overflow-y: auto;
+  padding: 1rem 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  background: #111122;
+  border-top: 2px solid var(--couleur-accent);
+}
+
+/* Pseudo */
+#validation-pseudo {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+#validation-pseudo label {
+  font-size: 0.85rem;
+  opacity: 0.7;
+  white-space: nowrap;
+}
+
+#input-pseudo {
+  flex: 1;
+  background: #1e1e38;
+  border: 1px solid #444;
+  border-radius: var(--rayon-bord);
+  color: #fff;
+  font-size: 1.1rem;
+  font-family: var(--police);
+  padding: 0.5rem 0.75rem;
+  outline: none;
+}
+
+#input-pseudo:focus {
+  border-color: var(--couleur-accent);
+}
+
+/* Titres de sections */
+#validation-stats h2,
+#validation-pouvoirs h2 {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  opacity: 0.45;
+  margin-bottom: 0.5rem;
+}
+
+/* Lignes de stats */
+.stat-ligne {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.45rem;
+}
+
+.stat-icone {
+  font-size: 0.75rem;
+  width: 1.1rem;
+  flex-shrink: 0;
+}
+
+.stat-nom {
+  font-size: 0.8rem;
+  width: 5.5rem;
+  flex-shrink: 0;
+  opacity: 0.85;
+}
+
+.stat-barre-wrap {
+  flex: 1;
+  height: 10px;
+  background: rgba(255,255,255,0.08);
+  border-radius: 5px;
+  overflow: hidden;
+}
+
+.stat-barre {
+  height: 100%;
+  width: 0%;
+  background: var(--couleur, #888);
+  border-radius: 5px;
+  transition: width 0.7s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.stat-val {
+  font-size: 0.75rem;
+  font-family: monospace;
+  opacity: 0.6;
+  width: 2.5rem;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+/* Jauges de pouvoirs — même structure que stats */
+.pouvoir-ligne {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.35rem;
+}
+
+.pouvoir-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: var(--couleur, #888);
+}
+
+.pouvoir-nom {
+  font-size: 0.75rem;
+  width: 5.5rem;
+  flex-shrink: 0;
+  opacity: 0.8;
+}
+
+.pouvoir-barre-wrap {
+  flex: 1;
+  height: 6px;
+  background: rgba(255,255,255,0.08);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.pouvoir-barre {
+  height: 100%;
+  width: 0%;
+  background: var(--couleur, #888);
+  border-radius: 3px;
+  opacity: 0.75;
+  transition: width 0.9s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Boutons d'action */
+#validation-actions {
+  display: flex;
+  gap: 0.75rem;
+  padding-top: 0.25rem;
+}
+
+#btn-rescanner {
+  flex: 0 0 auto;
+  background: transparent;
+  border: 1px solid #555;
+  color: #aaa;
+  font-size: 0.9rem;
+  padding: 0.65rem 1rem;
+}
+
+#btn-rescanner:hover {
+  border-color: #aaa;
+  color: #fff;
+}
+
+#btn-valider {
+  flex: 1;
+  background: var(--couleur-accent);
+  color: #000;
+  font-size: 1rem;
+  font-weight: bold;
+  letter-spacing: 0.05em;
+  padding: 0.75rem;
+}
+
+/* Paysage : 3D à gauche, infos à droite */
+@media (orientation: landscape) and (min-width: 600px) {
+  #ecran-validation {
+    flex-direction: row;
+  }
+
+  #validation-3d {
+    flex: 1 1 55%;
+  }
+
+  #validation-infos {
+    flex: 0 0 45%;
+    max-height: 100vh;
+    border-top: none;
+    border-left: 2px solid var(--couleur-accent);
+  }
+}
+

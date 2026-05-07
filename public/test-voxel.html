@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pop Vroum — Test voxel/renderer</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #1a1a2e; color: #e0e0e0; font-family: monospace; display: flex; flex-direction: column; height: 100vh; }
+    h1 { color: #f5a623; padding: 1rem; font-size: 1rem; }
+    #controls { padding: 0 1rem 0.5rem; display: flex; gap: 0.5rem; flex-wrap: wrap; }
+    button {
+      background: #0f0f23; border: 1px solid #444; color: #e0e0e0;
+      padding: 0.4rem 0.8rem; border-radius: 4px; cursor: pointer; font-family: monospace;
+    }
+    button:hover { border-color: #f5a623; color: #f5a623; }
+    #canvas-wrap { flex: 1; position: relative; }
+    #cv { width: 100%; height: 100%; display: block; }
+    #log { position: absolute; bottom: 0; left: 0; right: 0; background: rgba(0,0,0,0.6);
+           font-size: 0.75rem; padding: 0.5rem 1rem; max-height: 6rem; overflow-y: auto; }
+    .ok  { color: #2ecc71; }
+    .ko  { color: #e74c3c; }
+  </style>
+</head>
+<body>
+  <h1>Pop Vroum — Test voxel/renderer (Story 2.4) — glisser pour orbiter</h1>
+  <div id="controls">
+    <button id="btn-rouge">100% Rouge</button>
+    <button id="btn-mixte">Mixte 6 couleurs</button>
+    <button id="btn-fusee">Fusée (roues étroites devant)</button>
+    <button id="btn-vide">Grille vide</button>
+  </div>
+  <div id="canvas-wrap">
+    <canvas id="cv"></canvas>
+    <div id="log">Chargement…</div>
+  </div>
+
+  <script type="module">
+    import { buildVoxelGrid }  from './js/modules/voxel/builder.js';
+    import { detectWheels }    from './js/modules/voxel/wheel-detector.js';
+    import { buildVehicleGroup, createPreviewScene, disposeVehicleGroup } from './js/modules/voxel/renderer.js';
+
+    const canvas = document.getElementById('cv');
+    // Forcer dimensions canvas avant création renderer
+    canvas.width  = canvas.parentElement.clientWidth;
+    canvas.height = canvas.parentElement.clientHeight;
+
+    const preview = createPreviewScene(canvas);
+    let currentGroup = null;
+
+    function log(msg, ok) {
+      const el = document.getElementById('log');
+      const cls = ok === true ? 'ok' : ok === false ? 'ko' : '';
+      el.innerHTML += `<span class="${cls}">${msg}</span>\n`;
+      el.scrollTop = el.scrollHeight;
+      console.log('[test-voxel]', msg);
+    }
+
+    function charger(label, face, profil, top) {
+      try {
+        const grid = buildVoxelGrid({ face, profile: profil, top });
+        const wheels = detectWheels({ profileGrid: profil, topGrid: top });
+        const group = buildVehicleGroup({ grid, wheelPositions: wheels });
+
+        if (currentGroup) disposeVehicleGroup(currentGroup);
+        currentGroup = group;
+        preview.setGroup(group);
+
+        const nbVoxels = group.children.length - wheels.length;
+        log(`✓ ${label} — ${nbVoxels} voxels, ${wheels.length} roues`, true);
+      } catch (e) {
+        log(`✗ ${label} — ${e.message}`, false);
+      }
+    }
+
+    const fill = (cols, rows, val) =>
+      Array.from({ length: cols }, () => Array.from({ length: rows }, () => val));
+
+    document.getElementById('btn-rouge').onclick = () =>
+      charger('100% Rouge',
+        fill(4, 4, 'red'), fill(8, 4, 'red'), fill(8, 4, 'red'));
+
+    document.getElementById('btn-mixte').onclick = () => {
+      // 3 vues entièrement remplies, couleur varie par tranche de x (6 couleurs)
+      const COULEURS = ['red','green','blue','orange','violet','pink'];
+      // face[z][y] : couleur par colonne z
+      const face   = Array.from({ length: 4 }, (_, z) => fill(1, 4, COULEURS[z % 6])[0]);
+      // profile[x][y] : couleur par colonne x
+      const profil = Array.from({ length: 8 }, (_, x) => fill(1, 4, COULEURS[x % 6])[0]);
+      // top[x][z] : même couleur que profil pour que la majorité soit cohérente
+      const top    = Array.from({ length: 8 }, (_, x) => fill(1, 4, COULEURS[x % 6])[0]);
+      charger('Mixte 6 couleurs (128 voxels)', face, profil, top);
+    };
+
+    document.getElementById('btn-fusee').onclick = () => {
+      // Bloc 100% solide (face + profil entièrement colorés = 2-sur-3 partout)
+      // Top vue : arrière large (x=0..3, z=0..3), avant étroit (x=4..7, z=1..2)
+      // → roues écartées en arrière, serrées en avant
+      const face   = fill(4, 4, 'orange');
+      const profil = fill(8, 4, 'orange');
+      const top    = Array.from({ length: 8 }, (_, x) =>
+        Array.from({ length: 4 }, (_, z) =>
+          x < 4 ? 'orange' : (z >= 1 && z <= 2 ? 'orange' : null)));
+      charger('Fusée (128 voxels, roues étroites devant)', face, profil, top);
+    };
+
+    document.getElementById('btn-vide').onclick = () =>
+      charger('Grille vide',
+        fill(4, 4, null), fill(8, 4, null), fill(8, 4, null));
+
+    log('Modules chargés — cliquez un bouton pour tester');
+
+    // Chargement auto
+    document.getElementById('btn-mixte').click();
+  </script>
+</body>
+</html>

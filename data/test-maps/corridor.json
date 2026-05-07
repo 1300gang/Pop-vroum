@@ -1,0 +1,23 @@
+{
+  "id": "test-corridor",
+  "name": "Couloir de test",
+  "startPosition": { "x": 0, "z": 0, "angle": 0 },
+  "tiles": [
+    { "x":  0, "z":  0, "type": "road" },
+    { "x":  0, "z":  8, "type": "road" },
+    { "x":  0, "z": 16, "type": "road" },
+    { "x":  0, "z": 24, "type": "road" },
+    { "x":  0, "z": 32, "type": "road" },
+    { "x":  0, "z": 40, "type": "road" },
+    { "x":  8, "z": 40, "type": "road" },
+    { "x": 16, "z": 40, "type": "road" },
+    { "x": 16, "z": 48, "type": "road" },
+    { "x": 16, "z": 56, "type": "road" },
+    { "x": 16, "z": 64, "type": "finish" }
+  ],
+  "obstacles": [
+    { "x":  4, "z": 20, "type": "wall" },
+    { "x": -4, "z": 28, "type": "wall" },
+    { "x": 12, "z": 44, "type": "wall" }
+  ]
+}

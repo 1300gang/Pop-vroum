@@ -1,0 +1,9 @@
+{
+  "id": "bot-3",
+  "nom": "Vert Phares",
+  "couleur": "green",
+  "couleurHex": "#1fa830",
+  "palette": ["green"],
+  "stats": { "speed": 7.0, "grip": 6.5, "accel": 7.5 },
+  "powers": { "aspiration": 1, "phares": 10, "sillage": 2, "shield": 0 }
+}

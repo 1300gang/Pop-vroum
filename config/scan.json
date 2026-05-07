@@ -1,0 +1,17 @@
+{
+  "hslTargets": {
+    "red":    { "h": 0,   "s": 0.8,  "l": 0.5  },
+    "green":  { "h": 120, "s": 0.7,  "l": 0.45 },
+    "blue":   { "h": 220, "s": 0.8,  "l": 0.5  },
+    "orange": { "h": 30,  "s": 0.85, "l": 0.55 },
+    "violet": { "h": 280, "s": 0.6,  "l": 0.45 },
+    "pink":   { "h": 340, "s": 0.6,  "l": 0.7  }
+  },
+  "tolerance": {
+    "hue": 25,
+    "sat": 0.4,
+    "light": 0.3
+  },
+  "minSaturation": 0.2,
+  "centerSampleRatio": 0.6
+}

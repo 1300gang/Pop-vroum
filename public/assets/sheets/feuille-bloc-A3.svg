@@ -1,0 +1,230 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!--
+  feuille-bloc-A3.svg — Pop Vroum
+  Format : A3 paysage 420×297 mm
+  viewBox : 0 0 420 297 (1 unité = 1 mm)
+
+  Layout :
+    Grille 8×8    : x=[28, 268], y=[27, 267]  — cases 30×30mm (3cm)
+    Légende       : x=[278, 410], y=[27, 240]
+    Signature     : x=[278, 410], y=[244, 267]
+    QR coins      : 20×20mm — TL(4,4) TR(396,4) BL(4,273) BR(396,273)
+-->
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  viewBox="0 0 420 297"
+  width="420mm"
+  height="297mm"
+  version="1.1">
+
+  <defs>
+    <style type="text/css">
+      text { font-family: Arial, Helvetica, sans-serif; }
+      .t-main    { font-size: 7px; font-weight: bold; letter-spacing: 1px; }
+      .t-section { font-size: 5px; font-weight: bold; }
+      .t-label   { font-size: 4px; }
+      .t-small   { font-size: 3.5px; fill: #444; }
+      .t-index   { font-size: 3px; fill: #999; }
+      .g-outer   { stroke: #000; stroke-width: 0.8; fill: none; }
+      .g-inner   { stroke: #444; stroke-width: 0.4; fill: none; }
+      .sep       { stroke: #bbb; stroke-width: 0.3; }
+      .sym-line  { stroke: #111; stroke-width: 1.5; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+      .sym-fill  { fill: #111; stroke: none; }
+      .sym-dot   { fill: #111; }
+      .sym-box   { stroke: #111; stroke-width: 0.8; fill: none; }
+    </style>
+
+    <!-- Flèche pour symboles -->
+    <marker id="arr" markerWidth="5" markerHeight="5" refX="4" refY="2.5" orient="auto">
+      <polygon points="0,0 5,2.5 0,5" fill="#111"/>
+    </marker>
+    <marker id="arr-sm" markerWidth="4" markerHeight="4" refX="3" refY="2" orient="auto">
+      <polygon points="0,0 4,2 0,4" fill="#555"/>
+    </marker>
+  </defs>
+
+  <!-- Fond -->
+  <rect width="420" height="297" fill="white"/>
+
+  <!-- ══════════════════════════════════════════════════
+       TITRE
+       ══════════════════════════════════════════════════ -->
+  <text x="148" y="16" class="t-main" fill="#111">POP VROUM — Feuille Bloc Map</text>
+  <line x1="28" y1="21" x2="412" y2="21" class="sep"/>
+
+  <!-- ══════════════════════════════════════════════════
+       GRILLE 8×8 — cases 30×30mm
+       x=[28, 268], y=[27, 267]
+       Lignes v : 28 58 88 118 148 178 208 238 268
+       Lignes h : 27 57 87 117 147 177 207 237 267
+       ══════════════════════════════════════════════════ -->
+  <g id="grille-bloc">
+
+    <!-- Numéros colonnes (axe x, 0→7) -->
+    <text x="43"  y="25" class="t-index" text-anchor="middle">0</text>
+    <text x="73"  y="25" class="t-index" text-anchor="middle">1</text>
+    <text x="103" y="25" class="t-index" text-anchor="middle">2</text>
+    <text x="133" y="25" class="t-index" text-anchor="middle">3</text>
+    <text x="163" y="25" class="t-index" text-anchor="middle">4</text>
+    <text x="193" y="25" class="t-index" text-anchor="middle">5</text>
+    <text x="223" y="25" class="t-index" text-anchor="middle">6</text>
+    <text x="253" y="25" class="t-index" text-anchor="middle">7</text>
+
+    <!-- Numéros lignes (axe y, 0→7) -->
+    <text x="26" y="44"  class="t-index" text-anchor="end">0</text>
+    <text x="26" y="74"  class="t-index" text-anchor="end">1</text>
+    <text x="26" y="104" class="t-index" text-anchor="end">2</text>
+    <text x="26" y="134" class="t-index" text-anchor="end">3</text>
+    <text x="26" y="164" class="t-index" text-anchor="end">4</text>
+    <text x="26" y="194" class="t-index" text-anchor="end">5</text>
+    <text x="26" y="224" class="t-index" text-anchor="end">6</text>
+    <text x="26" y="254" class="t-index" text-anchor="end">7</text>
+
+    <!-- Contour externe (épais) -->
+    <rect x="28" y="27" width="240" height="240" class="g-outer"/>
+
+    <!-- Lignes verticales internes -->
+    <line x1="58"  y1="27" x2="58"  y2="267" class="g-inner"/>
+    <line x1="88"  y1="27" x2="88"  y2="267" class="g-inner"/>
+    <line x1="118" y1="27" x2="118" y2="267" class="g-inner"/>
+    <line x1="148" y1="27" x2="148" y2="267" class="g-inner"/>
+    <line x1="178" y1="27" x2="178" y2="267" class="g-inner"/>
+    <line x1="208" y1="27" x2="208" y2="267" class="g-inner"/>
+    <line x1="238" y1="27" x2="238" y2="267" class="g-inner"/>
+
+    <!-- Lignes horizontales internes -->
+    <line x1="28" y1="57"  x2="268" y2="57"  class="g-inner"/>
+    <line x1="28" y1="87"  x2="268" y2="87"  class="g-inner"/>
+    <line x1="28" y1="117" x2="268" y2="117" class="g-inner"/>
+    <line x1="28" y1="147" x2="268" y2="147" class="g-inner"/>
+    <line x1="28" y1="177" x2="268" y2="177" class="g-inner"/>
+    <line x1="28" y1="207" x2="268" y2="207" class="g-inner"/>
+    <line x1="28" y1="237" x2="268" y2="237" class="g-inner"/>
+
+  </g>
+
+  <!-- ══════════════════════════════════════════════════
+       SÉPARATEUR VERTICAL
+       ══════════════════════════════════════════════════ -->
+  <line x1="273" y1="21" x2="273" y2="270" class="sep"/>
+
+  <!-- ══════════════════════════════════════════════════
+       LÉGENDE DES 4 SYMBOLES
+       Chaque bloc : carré exemple 26×26mm + nom + effet
+       Positions y : 30, 83, 136, 189
+       ══════════════════════════════════════════════════ -->
+  <g id="legende-symboles">
+    <text x="342" y="30" class="t-section" text-anchor="middle">Symboles à dessiner</text>
+
+    <!-- ─── RAMPE (y=35) ─────────────────────────── -->
+    <!-- Carré exemple -->
+    <rect x="278" y="35" width="26" height="26" class="sym-box" fill="#fafafa"/>
+    <!-- Dessin : sol + pente montante avec flèche -->
+    <line x1="281" y1="58"  x2="301" y2="58"  class="sym-line"/>
+    <line x1="281" y1="58"  x2="299" y2="40"  class="sym-line" marker-end="url(#arr)"/>
+    <!-- Texte -->
+    <text x="310" y="43" class="t-label" font-weight="bold">Rampe</text>
+    <text x="310" y="49" class="t-small">Fait monter ou descendre</text>
+    <text x="310" y="54" class="t-small">le véhicule.</text>
+    <text x="310" y="60" class="t-small">Dessine une flèche montante.</text>
+
+    <!-- ─── COLLANT (y=71) ─────────────────────────── -->
+    <rect x="278" y="71" width="26" height="26" class="sym-box" fill="#fafafa"/>
+    <!-- Dessin : grille de 4×4 points -->
+    <circle cx="284" cy="77" r="1.3" class="sym-dot"/>
+    <circle cx="291" cy="77" r="1.3" class="sym-dot"/>
+    <circle cx="298" cy="77" r="1.3" class="sym-dot"/>
+    <circle cx="284" cy="84" r="1.3" class="sym-dot"/>
+    <circle cx="291" cy="84" r="1.3" class="sym-dot"/>
+    <circle cx="298" cy="84" r="1.3" class="sym-dot"/>
+    <circle cx="284" cy="91" r="1.3" class="sym-dot"/>
+    <circle cx="291" cy="91" r="1.3" class="sym-dot"/>
+    <circle cx="298" cy="91" r="1.3" class="sym-dot"/>
+    <!-- Texte -->
+    <text x="310" y="79" class="t-label" font-weight="bold">Collant</text>
+    <text x="310" y="85" class="t-small">Réduit la vitesse,</text>
+    <text x="310" y="91" class="t-small">colle les roues au sol.</text>
+    <text x="310" y="96" class="t-small">Dessine des points (grille).</text>
+
+    <!-- ─── DUR (y=107) ─────────────────────────── -->
+    <rect x="278" y="107" width="26" height="26" class="sym-box" fill="#fafafa"/>
+    <!-- Dessin : carré plein centré -->
+    <rect x="283" y="112" width="16" height="16" class="sym-fill"/>
+    <!-- Texte -->
+    <text x="310" y="115" class="t-label" font-weight="bold">Dur</text>
+    <text x="310" y="121" class="t-small">Obstacle solide —</text>
+    <text x="310" y="127" class="t-small">fait perdre des voxels.</text>
+    <text x="310" y="132" class="t-small">Dessine un carré plein.</text>
+
+    <!-- ─── ACCÉLÉRATION (y=143) ─────────────────────────── -->
+    <rect x="278" y="143" width="26" height="26" class="sym-box" fill="#fafafa"/>
+    <!-- Dessin : double chevron → → -->
+    <polyline points="282,162 288,156 282,150" class="sym-line"/>
+    <polyline points="289,162 295,156 289,150" class="sym-line"/>
+    <polyline points="296,162 302,156 296,150" class="sym-line"/>
+    <!-- Texte -->
+    <text x="310" y="151" class="t-label" font-weight="bold">Accélération</text>
+    <text x="310" y="157" class="t-small">Boost de vitesse</text>
+    <text x="310" y="163" class="t-small">sur cette case.</text>
+    <text x="310" y="168" class="t-small">Dessine 3 chevrons →→→.</text>
+
+  </g>
+
+  <!-- ══════════════════════════════════════════════════
+       NOTE COMMUNE
+       ══════════════════════════════════════════════════ -->
+  <rect x="278" y="180" width="132" height="22" rx="2" fill="#fffbe6" stroke="#e6d080" stroke-width="0.4"/>
+  <text x="344" y="188" class="t-small" text-anchor="middle" font-weight="bold">Important : dessinez les symboles</text>
+  <text x="344" y="194" class="t-small" text-anchor="middle">grands, bien contrastés, 1 par case.</text>
+  <text x="344" y="199" class="t-small" text-anchor="middle">Les cases vides = terrain plat.</text>
+
+  <!-- ══════════════════════════════════════════════════
+       ZONE DE SIGNATURE
+       ══════════════════════════════════════════════════ -->
+  <g id="signature">
+    <rect x="278" y="210" width="132" height="57" rx="2" class="g-outer" fill="#fafafa"/>
+    <text x="344" y="218" class="t-section" text-anchor="middle">Signature du groupe</text>
+
+    <!-- Ligne Atelier -->
+    <text x="282" y="227" class="t-small">Atelier :</text>
+    <line x1="300" y1="228" x2="406" y2="228" stroke="#888" stroke-width="0.4"/>
+
+    <!-- Ligne Groupe -->
+    <text x="282" y="238" class="t-small">Groupe :</text>
+    <line x1="300" y1="239" x2="406" y2="239" stroke="#888" stroke-width="0.4"/>
+
+    <!-- Ligne Date -->
+    <text x="282" y="249" class="t-small">Date :</text>
+    <line x1="295" y1="250" x2="406" y2="250" stroke="#888" stroke-width="0.4"/>
+
+    <!-- Ligne Animateur -->
+    <text x="282" y="260" class="t-small">Animateur·trice :</text>
+    <line x1="315" y1="261" x2="406" y2="261" stroke="#888" stroke-width="0.4"/>
+  </g>
+
+  <!-- ══════════════════════════════════════════════════
+       QR CODES — popvroum-block-{tl,tr,bl,br}
+       20×20mm aux 4 coins
+       ══════════════════════════════════════════════════ -->
+
+  <!-- TL -->
+  <image id="qr-tl" href="./qr-codes/popvroum-block-tl.png"
+         x="4" y="4" width="20" height="20"
+         image-rendering="crisp-edges"/>
+
+  <!-- TR -->
+  <image id="qr-tr" href="./qr-codes/popvroum-block-tr.png"
+         x="396" y="4" width="20" height="20"
+         image-rendering="crisp-edges"/>
+
+  <!-- BL -->
+  <image id="qr-bl" href="./qr-codes/popvroum-block-bl.png"
+         x="4" y="273" width="20" height="20"
+         image-rendering="crisp-edges"/>
+
+  <!-- BR -->
+  <image id="qr-br" href="./qr-codes/popvroum-block-br.png"
+         x="396" y="273" width="20" height="20"
+         image-rendering="crisp-edges"/>
+
+</svg>

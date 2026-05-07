@@ -1,0 +1,17 @@
+{
+  "id": "block_seed_ramp",
+  "name": "Rampe",
+  "createdAt": "2026-04-30T00:00:00Z",
+  "atelier": "_seed",
+  "note": "Après rotation 90° CW : couloir avec rampe au centre",
+  "grid": [
+    ["dur", "dur", "dur", "dur", "dur", "dur", "dur", "dur"],
+    ["dur", null,  null,  null,  null,  null,  null,  "dur"],
+    [null,  null,  "ramp","ramp","ramp","ramp", null,  null],
+    [null,  null,  "ramp","ramp","ramp","ramp", null,  null],
+    [null,  null,  "ramp","ramp","ramp","ramp", null,  null],
+    [null,  null,  "ramp","ramp","ramp","ramp", null,  null],
+    ["dur", null,  null,  null,  null,  null,  null,  "dur"],
+    ["dur", "dur", "dur", "dur", "dur", "dur", "dur", "dur"]
+  ]
+}

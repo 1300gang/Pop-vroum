@@ -1,0 +1,1216 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!--
+  feuille-vehicule-v2-sandwich-A4.svg — Pop Vroum
+  Format : A4 paysage 297×210 mm
+  viewBox : 0 0 297 210 (1 unité = 1 mm)
+
+  Layout (toutes les cotes en mm) :
+    QR coins      : 15×15mm aux 4 coins, marge 4mm
+    Schéma        : x=[22, 275], y=[4, 47]  → illustration sandwich
+    Grilles       : y=[50, 170], côte à côte
+      Grille 1    : x=[37,  89]   (4×8 cases, 13×15mm)
+      Grille 2    : x=[94,  146]
+      Grille 3    : x=[151, 203]
+      Grille 4    : x=[208, 260]
+    Labels        : y=[171, 181]
+    Patch couleur : x=[22,  88],  y=[184, 206]
+    Légende       : x=[93,  275], y=[184, 206]
+-->
+
+<svg
+   viewBox="0 0 297 210"
+   width="297mm"
+   height="210mm"
+   version="1.1"
+   id="svg89"
+   sodipodi:docname="feuille-vehicule-v2-sandwich-A4.svg"
+   inkscape:version="1.4 (e7c3feb1, 2024-10-09)"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <sodipodi:namedview
+     id="namedview89"
+     pagecolor="#ffffff"
+     bordercolor="#000000"
+     borderopacity="0.25"
+     inkscape:showpageshadow="2"
+     inkscape:pageopacity="0.0"
+     inkscape:pagecheckerboard="0"
+     inkscape:deskcolor="#d1d1d1"
+     inkscape:document-units="mm"
+     inkscape:zoom="0.8892524"
+     inkscape:cx="482.42771"
+     inkscape:cy="484.67679"
+     inkscape:window-width="1952"
+     inkscape:window-height="1045"
+     inkscape:window-x="0"
+     inkscape:window-y="30"
+     inkscape:window-maximized="0"
+     inkscape:current-layer="svg89" />
+  <defs
+     id="defs2">
+    <style
+       type="text/css"
+       id="style1">
+      text { font-family: Arial, Helvetica, sans-serif; }
+      .t-main   { font-size: 6.5px; font-weight: bold; letter-spacing: 0.5px; }
+      .t-sub    { font-size: 4px; fill: #444; }
+      .t-grid-label { font-size: 4.5px; font-weight: bold; }
+      .t-grid-num   { font-size: 7px; font-weight: bold; }
+      .t-axis   { font-size: 4px; fill: #333; font-weight: bold; }
+      .t-legend { font-size: 3.8px; }
+      .t-patch  { font-size: 3.5px; fill: #333; }
+      .g-outer  { stroke: #000; stroke-width: 0.6; fill: none; }
+      .g-inner  { stroke: #888; stroke-width: 0.25; fill: none; }
+      .c-patch  { stroke: #000; stroke-width: 0.4; }
+    </style>
+    <!-- Flèche -->
+    <marker
+       id="arr-down"
+       markerWidth="4"
+       markerHeight="4"
+       refX="2"
+       refY="4"
+       orient="auto">
+      <path
+         d="M0,0 L4,0 L2,4 z"
+         fill="#333"
+         id="path1" />
+    </marker>
+    <marker
+       id="arr-up"
+       markerWidth="4"
+       markerHeight="4"
+       refX="2"
+       refY="0"
+       orient="auto">
+      <path
+         d="M0,4 L4,4 L2,0 z"
+         fill="#333"
+         id="path2" />
+    </marker>
+  </defs>
+  <!-- Fond blanc -->
+  <rect
+     width="297"
+     height="210"
+     fill="white"
+     id="rect2" />
+  <!-- ══════════════════════════════════════════════════
+       QR CODES AUX 4 COINS
+       ══════════════════════════════════════════════════ -->
+  <image
+     id="qr-tl"
+     href="qr-codes/popvroum-v2-tl.png"
+     x="4"
+     y="4"
+     width="30"
+     height="30"
+     image-rendering="crisp-edges" />
+  <image
+     id="qr-tr"
+     href="qr-codes/popvroum-v2-tr.png"
+     x="263"
+     y="4"
+     width="30"
+     height="30"
+     image-rendering="crisp-edges" />
+  <image
+     id="qr-bl"
+     href="qr-codes/popvroum-v2-bl.png"
+     x="4"
+     y="176"
+     width="30"
+     height="30"
+     image-rendering="crisp-edges" />
+  <image
+     id="qr-br"
+     href="qr-codes/popvroum-v2-br.png"
+     x="263"
+     y="176"
+     width="30"
+     height="30"
+     image-rendering="crisp-edges" />
+  <!-- ══════════════════════════════════════════════════
+       TITRE PRINCIPAL
+       ══════════════════════════════════════════════════ -->
+  <text
+     x="148.5"
+     y="10"
+     class="t-main"
+     text-anchor="middle"
+     id="text2">POP VROUM — FEUILLE VÉHICULE</text>
+  <text
+     x="148.5"
+     y="15"
+     class="t-sub"
+     text-anchor="middle"
+     id="text3">Dessine ton véhicule tranche par tranche, comme un sandwich !</text>
+  <!-- ══════════════════════════════════════════════════
+       SCHÉMA EXPLICATIF "SANDWICH"
+       Vue isométrique simplifiée d'un véhicule en 4 tranches
+       Zone : x=[22, 275], y=[17, 47]
+       ══════════════════════════════════════════════════ -->
+  <!-- Fond gris très clair pour la zone schéma -->
+  <rect
+     x="37.164593"
+     y="16.99033"
+     width="221.77821"
+     height="30.019341"
+     rx="1.7531874"
+     fill="#f5f5f5"
+     stroke="#cccccc"
+     stroke-width="0.289746"
+     id="rect3" />
+  <!-- Label "COMMENT ÇA MARCHE ?" -->
+  <text
+     x="39.769333"
+     y="14.561636"
+     font-family="Arial"
+     font-size="4px"
+     font-weight="bold"
+     fill="#555555"
+     id="text4">COMMENT ÇA MARCHE ?</text>
+  <!-- Véhicule "explosé" en 4 tranches — style Minecraft/LEGO simplifié -->
+  <!-- Dessin isométrique simplifié : parallélogrammes empilés avec séparation -->
+  <!-- Tranche 4 — DESSUS (capot/toit) — en haut -->
+  <g
+     transform="translate(50, 18)"
+     id="g6">
+    <!-- corps tranche 4 -->
+    <path
+       d="M0,6 L20,6 L24,0 L4,0 Z"
+       fill="#e3f2fd"
+       stroke="#333"
+       stroke-width="0.5"
+       id="path4" />
+    <path
+       d="M20,6 L24,6 L24,0 L20,0"
+       fill="#bbdefb"
+       stroke="#333"
+       stroke-width="0.5"
+       id="path5" />
+    <text
+       x="8"
+       y="5"
+       font-family="Arial"
+       font-size="4.5px"
+       font-weight="bold"
+       fill="#1565c0"
+       id="text5">④</text>
+    <!-- Séparation (espace entre tranches) -->
+    <text
+       x="26"
+       y="4"
+       font-family="Arial"
+       font-size="3.5px"
+       fill="#666"
+       id="text6">DESSUS</text>
+  </g>
+  <!-- Tranche 3 — MILIEU HAUT -->
+  <g
+     transform="translate(50, 26)"
+     id="g8">
+    <path
+       d="M0,6 L20,6 L24,0 L4,0 Z"
+       fill="#e8f5e9"
+       stroke="#333"
+       stroke-width="0.5"
+       id="path6" />
+    <path
+       d="M20,6 L24,6 L24,0 L20,0"
+       fill="#c8e6c9"
+       stroke="#333"
+       stroke-width="0.5"
+       id="path7" />
+    <text
+       x="8"
+       y="5"
+       font-family="Arial"
+       font-size="4.5px"
+       font-weight="bold"
+       fill="#2e7d32"
+       id="text7">③</text>
+    <text
+       x="26"
+       y="4"
+       font-family="Arial"
+       font-size="3.5px"
+       fill="#666"
+       id="text8">MILIEU HAUT</text>
+  </g>
+  <!-- Tranche 2 — MILIEU BAS -->
+  <g
+     transform="translate(50, 34)"
+     id="g10">
+    <path
+       d="M0,6 L20,6 L24,0 L4,0 Z"
+       fill="#fff9e6"
+       stroke="#333"
+       stroke-width="0.5"
+       id="path8" />
+    <path
+       d="M20,6 L24,6 L24,0 L20,0"
+       fill="#fff3cd"
+       stroke="#333"
+       stroke-width="0.5"
+       id="path9" />
+    <text
+       x="8"
+       y="5"
+       font-family="Arial"
+       font-size="4.5px"
+       font-weight="bold"
+       fill="#e65100"
+       id="text9">②</text>
+    <text
+       x="26"
+       y="4"
+       font-family="Arial"
+       font-size="3.5px"
+       fill="#666"
+       id="text10">MILIEU BAS</text>
+  </g>
+  <!-- Tranche 1 — DESSOUS (roues) -->
+  <g
+     transform="translate(50, 42)"
+     id="g12">
+    <path
+       d="M0,6 L20,6 L24,0 L4,0 Z"
+       fill="#fce4ec"
+       stroke="#333"
+       stroke-width="0.5"
+       id="path10" />
+    <path
+       d="M20,6 L24,6 L24,0 L20,0"
+       fill="#f8bbd0"
+       stroke="#333"
+       stroke-width="0.5"
+       id="path11" />
+    <text
+       x="8"
+       y="5"
+       font-family="Arial"
+       font-size="4.5px"
+       font-weight="bold"
+       fill="#c62828"
+       id="text11">①</text>
+    <text
+       x="26"
+       y="4"
+       font-family="Arial"
+       font-size="3.5px"
+       fill="#666"
+       id="text12">DESSOUS — roues</text>
+  </g>
+  <!-- Flèche de montage "assemblé" -->
+  <text
+     x="82"
+     y="32"
+     font-family="Arial"
+     font-size="8px"
+     fill="#333"
+     font-weight="bold"
+     id="text13">→</text>
+  <!-- Véhicule assemblé (vue de côté simplifiée) -->
+  <g
+     transform="translate(94, 20)"
+     id="g20">
+    <!-- carrosserie -->
+    <rect
+       x="0"
+       y="4"
+       width="30"
+       height="16"
+       rx="2"
+       fill="#e0e0e0"
+       stroke="#333"
+       stroke-width="0.6"
+       id="rect13" />
+    <!-- cabine -->
+    <rect
+       x="7"
+       y="0"
+       width="17"
+       height="8"
+       rx="2"
+       fill="#bdbdbd"
+       stroke="#333"
+       stroke-width="0.5"
+       id="rect14" />
+    <!-- ligne tranche 2 -->
+    <line
+       x1="0"
+       y1="8.3"
+       x2="30"
+       y2="8.3"
+       stroke="#999"
+       stroke-width="0.5"
+       stroke-dasharray="1,1"
+       id="line14" />
+    <!-- ligne tranche 3 -->
+    <line
+       x1="0"
+       y1="12.7"
+       x2="30"
+       y2="12.7"
+       stroke="#999"
+       stroke-width="0.5"
+       stroke-dasharray="1,1"
+       id="line15" />
+    <!-- ligne tranche 4 (haut habitable) -->
+    <line
+       x1="7"
+       y1="4"
+       x2="24"
+       y2="4"
+       stroke="#999"
+       stroke-width="0.5"
+       stroke-dasharray="1,1"
+       id="line16" />
+    <!-- roues -->
+    <circle
+       cx="6"
+       cy="21"
+       r="3.5"
+       fill="#444"
+       stroke="#000"
+       stroke-width="0.5"
+       id="circle16" />
+    <circle
+       cx="24"
+       cy="21"
+       r="3.5"
+       fill="#444"
+       stroke="#000"
+       stroke-width="0.5"
+       id="circle17" />
+    <!-- numéros des tranches sur le véhicule -->
+    <text
+       x="1"
+       y="20"
+       font-family="Arial"
+       font-size="3.5px"
+       font-weight="bold"
+       fill="#c62828"
+       id="text17">①</text>
+    <text
+       x="1"
+       y="16"
+       font-family="Arial"
+       font-size="3.5px"
+       font-weight="bold"
+       fill="#e65100"
+       id="text18">②</text>
+    <text
+       x="1"
+       y="12"
+       font-family="Arial"
+       font-size="3.5px"
+       font-weight="bold"
+       fill="#2e7d32"
+       id="text19">③</text>
+    <text
+       x="1"
+       y="7"
+       font-family="Arial"
+       font-size="3.5px"
+       font-weight="bold"
+       fill="#1565c0"
+       id="text20">④</text>
+  </g>
+  <!-- Texte explicatif à droite du schéma -->
+  <text
+     x="136"
+     y="22"
+     font-family="Arial"
+     font-size="3.8px"
+     fill="#333"
+     id="text24"><tspan
+       x="136"
+       dy="0"
+       id="tspan20">Chaque grille = une tranche vue du dessus.</tspan><tspan
+       x="136"
+       dy="5"
+       id="tspan21">Colorie les cases pour donner la forme</tspan><tspan
+       x="136"
+       dy="5"
+       id="tspan22">et la couleur de ton véhicule !</tspan><tspan
+       x="136"
+       dy="5"
+       font-weight="bold"
+       fill="#555"
+       id="tspan23">↑ AVANT de la voiture = haut de la grille</tspan><tspan
+       x="136"
+       dy="5"
+       fill="#888"
+       id="tspan24">Laisse vide = pas de matière à cet endroit</tspan></text>
+  <!-- ══════════════════════════════════════════════════
+       4 GRILLES 4×8 CÔTE À CÔTE
+       Grille N : x-start = 37 + (N-1) × 57
+       y-start = 50, hauteur = 8×15 = 120mm
+       largeur = 4×13 = 52mm
+       ══════════════════════════════════════════════════ -->
+  <!-- Macro pour une grille : 4 cols × 8 rows -->
+  <!-- Grille 1 : x=37, Grille 2 : x=94, Grille 3 : x=151, Grille 4 : x=208 -->
+  <!-- ─── GRILLE 1 ─── DESSOUS -->
+  <g
+     id="grille-1"
+     transform="translate(37, 50)">
+    <!-- Indicateur AVANT (haut) -->
+    <text
+       x="26"
+       y="-4.5"
+       font-family="Arial"
+       font-size="3.8px"
+       font-weight="bold"
+       fill="#333"
+       text-anchor="middle"
+       id="text25">AVANT ↑</text>
+    <!-- Bordure externe -->
+    <rect
+       x="0"
+       y="0"
+       width="52"
+       height="120"
+       class="g-outer"
+       id="rect25" />
+    <!-- Lignes horizontales internes (7 lignes) -->
+    <line
+       x1="0"
+       y1="15"
+       x2="52"
+       y2="15"
+       class="g-inner"
+       id="line25" />
+    <line
+       x1="0"
+       y1="30"
+       x2="52"
+       y2="30"
+       class="g-inner"
+       id="line26" />
+    <line
+       x1="0"
+       y1="45"
+       x2="52"
+       y2="45"
+       class="g-inner"
+       id="line27" />
+    <line
+       x1="0"
+       y1="60"
+       x2="52"
+       y2="60"
+       class="g-inner"
+       id="line28" />
+    <line
+       x1="0"
+       y1="75"
+       x2="52"
+       y2="75"
+       class="g-inner"
+       id="line29" />
+    <line
+       x1="0"
+       y1="90"
+       x2="52"
+       y2="90"
+       class="g-inner"
+       id="line30" />
+    <line
+       x1="0"
+       y1="105"
+       x2="52"
+       y2="105"
+       class="g-inner"
+       id="line31" />
+    <!-- Lignes verticales internes (3 lignes) -->
+    <line
+       x1="13"
+       y1="0"
+       x2="13"
+       y2="120"
+       class="g-inner"
+       id="line32" />
+    <line
+       x1="26"
+       y1="0"
+       x2="26"
+       y2="120"
+       class="g-inner"
+       id="line33" />
+    <line
+       x1="39"
+       y1="0"
+       x2="39"
+       y2="120"
+       class="g-inner"
+       id="line34" />
+    <!-- Indicateur ARRIÈRE (bas) -->
+    <text
+       x="26"
+       y="129"
+       font-family="Arial"
+       font-size="3.8px"
+       font-weight="bold"
+       fill="#333"
+       text-anchor="middle"
+       id="text34">↓ ARRIÈRE</text>
+  </g>
+  <!-- ─── GRILLE 2 ─── MILIEU BAS -->
+  <g
+     id="grille-2"
+     transform="translate(94, 50)">
+    <text
+       x="26"
+       y="-4.5"
+       font-family="Arial"
+       font-size="3.8px"
+       font-weight="bold"
+       fill="#333"
+       text-anchor="middle"
+       id="text35">AVANT ↑</text>
+    <rect
+       x="0"
+       y="0"
+       width="52"
+       height="120"
+       class="g-outer"
+       id="rect35" />
+    <line
+       x1="0"
+       y1="15"
+       x2="52"
+       y2="15"
+       class="g-inner"
+       id="line35" />
+    <line
+       x1="0"
+       y1="30"
+       x2="52"
+       y2="30"
+       class="g-inner"
+       id="line36" />
+    <line
+       x1="0"
+       y1="45"
+       x2="52"
+       y2="45"
+       class="g-inner"
+       id="line37" />
+    <line
+       x1="0"
+       y1="60"
+       x2="52"
+       y2="60"
+       class="g-inner"
+       id="line38" />
+    <line
+       x1="0"
+       y1="75"
+       x2="52"
+       y2="75"
+       class="g-inner"
+       id="line39" />
+    <line
+       x1="0"
+       y1="90"
+       x2="52"
+       y2="90"
+       class="g-inner"
+       id="line40" />
+    <line
+       x1="0"
+       y1="105"
+       x2="52"
+       y2="105"
+       class="g-inner"
+       id="line41" />
+    <line
+       x1="13"
+       y1="0"
+       x2="13"
+       y2="120"
+       class="g-inner"
+       id="line42" />
+    <line
+       x1="26"
+       y1="0"
+       x2="26"
+       y2="120"
+       class="g-inner"
+       id="line43" />
+    <line
+       x1="39"
+       y1="0"
+       x2="39"
+       y2="120"
+       class="g-inner"
+       id="line44" />
+    <text
+       x="26"
+       y="129"
+       font-family="Arial"
+       font-size="3.8px"
+       font-weight="bold"
+       fill="#333"
+       text-anchor="middle"
+       id="text44">↓ ARRIÈRE</text>
+  </g>
+  <!-- ─── GRILLE 3 ─── MILIEU HAUT -->
+  <g
+     id="grille-3"
+     transform="translate(151, 50)">
+    <text
+       x="26"
+       y="-4.5"
+       font-family="Arial"
+       font-size="3.8px"
+       font-weight="bold"
+       fill="#333"
+       text-anchor="middle"
+       id="text45">AVANT ↑</text>
+    <rect
+       x="0"
+       y="0"
+       width="52"
+       height="120"
+       class="g-outer"
+       id="rect45" />
+    <line
+       x1="0"
+       y1="15"
+       x2="52"
+       y2="15"
+       class="g-inner"
+       id="line45" />
+    <line
+       x1="0"
+       y1="30"
+       x2="52"
+       y2="30"
+       class="g-inner"
+       id="line46" />
+    <line
+       x1="0"
+       y1="45"
+       x2="52"
+       y2="45"
+       class="g-inner"
+       id="line47" />
+    <line
+       x1="0"
+       y1="60"
+       x2="52"
+       y2="60"
+       class="g-inner"
+       id="line48" />
+    <line
+       x1="0"
+       y1="75"
+       x2="52"
+       y2="75"
+       class="g-inner"
+       id="line49" />
+    <line
+       x1="0"
+       y1="90"
+       x2="52"
+       y2="90"
+       class="g-inner"
+       id="line50" />
+    <line
+       x1="0"
+       y1="105"
+       x2="52"
+       y2="105"
+       class="g-inner"
+       id="line51" />
+    <line
+       x1="13"
+       y1="0"
+       x2="13"
+       y2="120"
+       class="g-inner"
+       id="line52" />
+    <line
+       x1="26"
+       y1="0"
+       x2="26"
+       y2="120"
+       class="g-inner"
+       id="line53" />
+    <line
+       x1="39"
+       y1="0"
+       x2="39"
+       y2="120"
+       class="g-inner"
+       id="line54" />
+    <text
+       x="26"
+       y="129"
+       font-family="Arial"
+       font-size="3.8px"
+       font-weight="bold"
+       fill="#333"
+       text-anchor="middle"
+       id="text54">↓ ARRIÈRE</text>
+  </g>
+  <!-- ─── GRILLE 4 ─── DESSUS -->
+  <g
+     id="grille-4"
+     transform="translate(208, 50)">
+    <text
+       x="26"
+       y="-4.5"
+       font-family="Arial"
+       font-size="3.8px"
+       font-weight="bold"
+       fill="#333"
+       text-anchor="middle"
+       id="text55">AVANT ↑</text>
+    <rect
+       x="0"
+       y="0"
+       width="52"
+       height="120"
+       class="g-outer"
+       id="rect55" />
+    <line
+       x1="0"
+       y1="15"
+       x2="52"
+       y2="15"
+       class="g-inner"
+       id="line55" />
+    <line
+       x1="0"
+       y1="30"
+       x2="52"
+       y2="30"
+       class="g-inner"
+       id="line56" />
+    <line
+       x1="0"
+       y1="45"
+       x2="52"
+       y2="45"
+       class="g-inner"
+       id="line57" />
+    <line
+       x1="0"
+       y1="60"
+       x2="52"
+       y2="60"
+       class="g-inner"
+       id="line58" />
+    <line
+       x1="0"
+       y1="75"
+       x2="52"
+       y2="75"
+       class="g-inner"
+       id="line59" />
+    <line
+       x1="0"
+       y1="90"
+       x2="52"
+       y2="90"
+       class="g-inner"
+       id="line60" />
+    <line
+       x1="0"
+       y1="105"
+       x2="52"
+       y2="105"
+       class="g-inner"
+       id="line61" />
+    <line
+       x1="13"
+       y1="0"
+       x2="13"
+       y2="120"
+       class="g-inner"
+       id="line62" />
+    <line
+       x1="26"
+       y1="0"
+       x2="26"
+       y2="120"
+       class="g-inner"
+       id="line63" />
+    <line
+       x1="39"
+       y1="0"
+       x2="39"
+       y2="120"
+       class="g-inner"
+       id="line64" />
+    <text
+       x="26"
+       y="129"
+       font-family="Arial"
+       font-size="3.8px"
+       font-weight="bold"
+       fill="#333"
+       text-anchor="middle"
+       id="text64">↓ ARRIÈRE</text>
+  </g>
+  <!-- ══════════════════════════════════════════════════
+       LABELS SOUS LES GRILLES
+       y = 50 + 120 + 14 = 184 → trop bas, utiliser y=183
+       On met numéro + texte court
+       ══════════════════════════════════════════════════ -->
+  <!-- Bandes colorées de bas des grilles pour identification rapide -->
+  <rect
+     x="37"
+     y="168"
+     width="52"
+     height="3"
+     rx="0.5"
+     fill="#f48fb1"
+     opacity="0.6"
+     id="rect64" />
+  <rect
+     x="94"
+     y="168"
+     width="52"
+     height="3"
+     rx="0.5"
+     fill="#ffe082"
+     opacity="0.6"
+     id="rect65" />
+  <rect
+     x="151"
+     y="168"
+     width="52"
+     height="3"
+     rx="0.5"
+     fill="#a5d6a7"
+     opacity="0.6"
+     id="rect66" />
+  <rect
+     x="208"
+     y="168"
+     width="52"
+     height="3"
+     rx="0.5"
+     fill="#90caf9"
+     opacity="0.6"
+     id="rect67" />
+  <!-- Labels grille 1 -->
+  <text
+     x="63"
+     y="175.5"
+     font-family="Arial"
+     font-size="4.5px"
+     font-weight="bold"
+     fill="#c62828"
+     text-anchor="middle"
+     id="text67">① DESSOUS</text>
+  <text
+     x="63"
+     y="180"
+     font-family="Arial"
+     font-size="3.5px"
+     fill="#555"
+     text-anchor="middle"
+     id="text68">roues et châssis</text>
+  <!-- Labels grille 2 -->
+  <text
+     x="120"
+     y="175.5"
+     font-family="Arial"
+     font-size="4.5px"
+     font-weight="bold"
+     fill="#e65100"
+     text-anchor="middle"
+     id="text69">② MILIEU BAS</text>
+  <text
+     x="120"
+     y="180"
+     font-family="Arial"
+     font-size="3.5px"
+     fill="#555"
+     text-anchor="middle"
+     id="text70">habitacle bas</text>
+  <!-- Labels grille 3 -->
+  <text
+     x="177"
+     y="175.5"
+     font-family="Arial"
+     font-size="4.5px"
+     font-weight="bold"
+     fill="#2e7d32"
+     text-anchor="middle"
+     id="text71">③ MILIEU HAUT</text>
+  <text
+     x="177"
+     y="180"
+     font-family="Arial"
+     font-size="3.5px"
+     fill="#555"
+     text-anchor="middle"
+     id="text72">habitacle haut</text>
+  <!-- Labels grille 4 -->
+  <text
+     x="234"
+     y="175.5"
+     font-family="Arial"
+     font-size="4.5px"
+     font-weight="bold"
+     fill="#1565c0"
+     text-anchor="middle"
+     id="text73">④ DESSUS</text>
+  <text
+     x="234"
+     y="180"
+     font-family="Arial"
+     font-size="3.5px"
+     fill="#555"
+     text-anchor="middle"
+     id="text74">capot et toit</text>
+  <!-- ══════════════════════════════════════════════════
+       PATCH DE RÉFÉRENCE COULEUR — bas gauche
+       6 carrés 8×8mm alignés, x=[36, 90], y=[185, 204]
+       (décalé pour laisser place au QR bas-gauche x=[4,34])
+       ══════════════════════════════════════════════════ -->
+  <text
+     x="36"
+     y="184"
+     font-family="Arial"
+     font-size="3.5px"
+     font-weight="bold"
+     fill="#333"
+     id="text75">RÉFÉRENCE COULEURS :</text>
+  <!-- Rouge -->
+  <rect
+     x="36"
+     y="186"
+     width="8"
+     height="8"
+     fill="#e53935"
+     class="c-patch"
+     id="rect75" />
+  <text
+     x="40"
+     y="197.5"
+     font-family="Arial"
+     font-size="3px"
+     fill="#333"
+     text-anchor="middle"
+     id="text76">rouge</text>
+  <!-- Vert (pos 2) -->
+  <rect
+     x="45"
+     y="186"
+     width="8"
+     height="8"
+     fill="#43A047"
+     class="c-patch"
+     id="rect76" />
+  <text
+     x="49"
+     y="197.5"
+     font-family="Arial"
+     font-size="3px"
+     fill="#333"
+     text-anchor="middle"
+     id="text77">vert</text>
+  <!-- Bleu (pos 3) -->
+  <rect
+     x="54"
+     y="186"
+     width="8"
+     height="8"
+     fill="#1E88E5"
+     class="c-patch"
+     id="rect77" />
+  <text
+     x="58"
+     y="197.5"
+     font-family="Arial"
+     font-size="3px"
+     fill="#333"
+     text-anchor="middle"
+     id="text78">bleu</text>
+  <!-- Orange (pos 4) -->
+  <rect
+     x="63"
+     y="186"
+     width="8"
+     height="8"
+     fill="#FB8C00"
+     class="c-patch"
+     id="rect78" />
+  <text
+     x="67"
+     y="197.5"
+     font-family="Arial"
+     font-size="3px"
+     fill="#333"
+     text-anchor="middle"
+     id="text79">orange</text>
+  <!-- Violet (pos 5) -->
+  <rect
+     x="72"
+     y="186"
+     width="8"
+     height="8"
+     fill="#8E24AA"
+     class="c-patch"
+     id="rect79" />
+  <text
+     x="76"
+     y="197.5"
+     font-family="Arial"
+     font-size="3px"
+     fill="#333"
+     text-anchor="middle"
+     id="text80">violet</text>
+  <!-- Rose (pos 6) -->
+  <rect
+     x="81"
+     y="186"
+     width="8"
+     height="8"
+     fill="#EC4899"
+     class="c-patch"
+     id="rect80" />
+  <text
+     x="85"
+     y="197.5"
+     font-family="Arial"
+     font-size="3px"
+     fill="#333"
+     text-anchor="middle"
+     id="text81">rose</text>
+  <!-- ══════════════════════════════════════════════════
+       LÉGENDE DES 6 COULEURS ET EFFETS — bas droite
+       x=[93, 275], y=[183, 206]
+       ══════════════════════════════════════════════════ -->
+  <text
+     x="93"
+     y="184"
+     font-family="Arial"
+     font-size="3.5px"
+     font-weight="bold"
+     fill="#333"
+     id="text82">EFFETS DES COULEURS :</text>
+  <!-- Colonne 1 -->
+  <rect
+     x="93"
+     y="186"
+     width="5"
+     height="5"
+     fill="#e53935"
+     class="c-patch"
+     id="rect82" />
+  <text
+     x="100"
+     y="190.5"
+     font-family="Arial"
+     font-size="3.5px"
+     fill="#333"
+     id="text83"><tspan
+   font-weight="bold"
+   id="tspan82">Rouge</tspan> — Vitesse maximale</text>
+  <rect
+     x="93"
+     y="194"
+     width="5"
+     height="5"
+     fill="#FB8C00"
+     class="c-patch"
+     id="rect83" />
+  <text
+     x="100"
+     y="198.5"
+     font-family="Arial"
+     font-size="3.5px"
+     fill="#333"
+     id="text84"><tspan
+   font-weight="bold"
+   id="tspan83">Orange</tspan> — Accélération</text>
+  <rect
+     x="93"
+     y="201"
+     width="5"
+     height="5"
+     fill="#EC4899"
+     class="c-patch"
+     id="rect84" />
+  <text
+     x="100"
+     y="205.5"
+     font-family="Arial"
+     font-size="3.5px"
+     fill="#333"
+     id="text85"><tspan
+   font-weight="bold"
+   id="tspan84">Rose</tspan> — Soin</text>
+  <!-- Colonne 2 -->
+  <rect
+     x="168"
+     y="186"
+     width="5"
+     height="5"
+     fill="#43A047"
+     class="c-patch"
+     id="rect85" />
+  <text
+     x="175"
+     y="190.5"
+     font-family="Arial"
+     font-size="3.5px"
+     fill="#333"
+     id="text86"><tspan
+   font-weight="bold"
+   id="tspan85">Vert</tspan> — Robustesse</text>
+  <rect
+     x="168"
+     y="194"
+     width="5"
+     height="5"
+     fill="#1E88E5"
+     class="c-patch"
+     id="rect86" />
+  <text
+     x="175"
+     y="198.5"
+     font-family="Arial"
+     font-size="3.5px"
+     fill="#333"
+     id="text87"><tspan
+   font-weight="bold"
+   id="tspan86">Bleu</tspan> — Pouvoir spécial eau</text>
+  <rect
+     x="168"
+     y="201"
+     width="5"
+     height="5"
+     fill="#8E24AA"
+     class="c-patch"
+     id="rect87" />
+  <text
+     x="175"
+     y="205.5"
+     font-family="Arial"
+     font-size="3.5px"
+     fill="#333"
+     id="text88"><tspan
+   font-weight="bold"
+   id="tspan87">Violet</tspan> — Pouvoir spécial énergie</text>
+  <!-- Texte Version en tout petit -->
+  <text
+     x="253"
+     y="206"
+     font-family="Arial"
+     font-size="2.8px"
+     fill="#bbb"
+     text-anchor="end"
+     id="text89">Pop Vroum — feuille v2 sandwich — collectifmilletroiscents.fr</text>
+</svg>

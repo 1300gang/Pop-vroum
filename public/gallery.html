@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pop Vroum — Galerie</title>
+  <link rel="stylesheet" href="css/shared.css">
+  <link rel="stylesheet" href="css/gallery.css">
+</head>
+<body>
+
+  <!-- En-tête -->
+  <header id="entete">
+    <h1>Galerie des véhicules</h1>
+    <div id="sous-titre">Tous les véhicules scannés lors des ateliers</div>
+  </header>
+
+  <!-- Barre d'action -->
+  <div id="barre-action">
+    <a href="scan.html" class="btn-nouveau-scan">+ Nouveau scan</a>
+    <span id="compteur-vehicules"></span>
+  </div>
+
+  <!-- État vide -->
+  <div id="etat-vide" class="cache">
+    <div id="etat-vide-icone">🚗</div>
+    <p>Aucun véhicule scanné pour l'instant.</p>
+    <a href="scan.html" class="btn-primaire">Scanner mon premier véhicule</a>
+  </div>
+
+  <!-- Grille de vignettes -->
+  <main id="grille-galerie" aria-label="Galerie des véhicules"></main>
+
+  <!-- Modale de visualisation -->
+  <div id="modale" class="cache" role="dialog" aria-modal="true" aria-label="Détail véhicule">
+    <div id="modale-fond" aria-hidden="true"></div>
+    <div id="modale-contenu">
+      <button id="btn-fermer-modale" aria-label="Fermer">✕</button>
+      <canvas id="canvas-modale"></canvas>
+      <div id="modale-infos">
+        <div id="modale-pseudo"></div>
+        <div id="modale-date"></div>
+        <div id="modale-stats"></div>
+      </div>
+      <div id="modale-actions">
+        <button id="btn-jouer" class="btn-jouer">🎮 Jouer avec ce véhicule</button>
+        <button id="btn-supprimer" class="btn-supprimer">Supprimer</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Confirmation suppression -->
+  <div id="modale-confirmation" class="cache" role="dialog" aria-modal="true">
+    <div id="confirmation-fond" aria-hidden="true"></div>
+    <div id="confirmation-contenu">
+      <p>Supprimer ce véhicule ?</p>
+      <p id="confirmation-sous-texte">Cette action est irréversible.</p>
+      <div id="confirmation-boutons">
+        <button id="btn-confirmer-suppression" class="btn-supprimer">Supprimer</button>
+        <button id="btn-annuler-suppression">Annuler</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="js/pages/gallery-page.js"></script>
+</body>
+</html>

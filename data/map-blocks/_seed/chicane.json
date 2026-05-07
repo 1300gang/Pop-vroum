@@ -1,0 +1,17 @@
+{
+  "id": "block_seed_chicane",
+  "name": "Chicane",
+  "createdAt": "2026-04-30T00:00:00Z",
+  "atelier": "_seed",
+  "note": "Après rotation 90° CW : virage en S forcé par 2 murs intérieurs décalés",
+  "grid": [
+    ["dur", "dur", "dur", "dur", "dur", "dur", "dur", "dur"],
+    ["dur", null,  null,  "dur", "dur", "dur", null,  "dur"],
+    [null,  null,  null,  "dur", "dur", null,  null,  null],
+    [null,  null,  null,  "dur", "dur", null,  null,  null],
+    [null,  null,  null,  null,  "dur", "dur", null,  null],
+    [null,  null,  null,  null,  "dur", "dur", null,  null],
+    ["dur", null,  "dur", "dur", null,  null,  null,  "dur"],
+    ["dur", "dur", "dur", "dur", "dur", "dur", "dur", "dur"]
+  ]
+}

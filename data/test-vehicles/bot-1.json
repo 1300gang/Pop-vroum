@@ -1,0 +1,9 @@
+{
+  "id": "bot-1",
+  "nom": "Turbo Rouge",
+  "couleur": "red",
+  "couleurHex": "#e62020",
+  "palette": ["red", "orange"],
+  "stats": { "speed": 9.5, "grip": 3.5, "accel": 5.0 },
+  "powers": { "aspiration": 9, "phares": 0, "sillage": 1, "shield": 2 }
+}

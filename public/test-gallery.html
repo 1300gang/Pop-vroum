@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Test Gallery Module</title>
+  <style>
+    body { font-family: monospace; padding: 20px; background: #1a1a1a; color: #fff; }
+    .test-section { margin: 20px 0; border: 1px solid #333; padding: 10px; }
+    .pass { color: #2ecc71; }
+    .fail { color: #e74c3c; }
+    .info { color: #3498db; }
+    button { padding: 8px 12px; margin: 4px; background: #2c3e50; color: #fff; border: 1px solid #34495e; cursor: pointer; }
+    button:hover { background: #34495e; }
+    pre { background: #0f0f0f; padding: 10px; overflow-x: auto; font-size: 11px; }
+  </style>
+</head>
+<body>
+
+<h1>Test — Module storage/gallery (Story 7.1)</h1>
+
+<div class="test-section">
+  <h3>Tests CRUD</h3>
+  <button onclick="testSave()">✓ Save (ajoute un véhicule)</button>
+  <button onclick="testList()">✓ List (affiche tous)</button>
+  <button onclick="testGet()">✓ Get (récupère par ID)</button>
+  <button onclick="testCount()">✓ Count (compte)</button>
+  <button onclick="testRemove()">✓ Remove (supprime)</button>
+  <button onclick="testPersistence()">✓ Persistence (rechargez la page après)</button>
+  <button onclick="clearAll()">⚠ Clear All (efface tout)</button>
+  <div id="results"></div>
+</div>
+
+<script type="module">
+  import * as Gallery from './js/modules/storage/gallery.js';
+
+  // Exposer au scope global pour les onclick
+  window.Gallery = Gallery;
+
+  window.testSave = function() {
+    const results = document.getElementById('results');
+    try {
+      const vehicule = {
+        grid: [[[{ color: 'red' }]]], // Grille minimale
+        wheelPositions: [{x:0, y:0, z:0}],
+        stats: { speed: 10, grip: 5, accel: 3 },
+        powers: { aspiration: 1 },
+        playerName: 'Test Player',
+      };
+      const id = Gallery.save(vehicule);
+      results.innerHTML = `<span class="pass">✓ Véhicule sauvegardé avec ID: ${id}</span>`;
+      window._lastId = id;
+    } catch (e) {
+      results.innerHTML = `<span class="fail">✗ Erreur: ${e.message}</span>`;
+    }
+  };
+
+  window.testList = function() {
+    const results = document.getElementById('results');
+    try {
+      const vehicles = Gallery.list();
+      results.innerHTML = `<span class="pass">✓ ${vehicles.length} véhicule(s) listés</span>`;
+      if (vehicles.length > 0) {
+        results.innerHTML += `<pre>${JSON.stringify(vehicles[0], null, 2).slice(0, 200)}...</pre>`;
+      }
+    } catch (e) {
+      results.innerHTML = `<span class="fail">✗ Erreur: ${e.message}</span>`;
+    }
+  };
+
+  window.testGet = function() {
+    const results = document.getElementById('results');
+    try {
+      if (!window._lastId) return results.innerHTML = `<span class="fail">✗ Pas d'ID sauvegardé (lancez Save d'abord)</span>`;
+      const v = Gallery.get(window._lastId);
+      if (v) {
+        results.innerHTML = `<span class="pass">✓ Véhicule récupéré: ${v.id}</span><pre>${JSON.stringify(v, null, 2).slice(0, 200)}...</pre>`;
+      } else {
+        results.innerHTML = `<span class="fail">✗ Pas trouvé</span>`;
+      }
+    } catch (e) {
+      results.innerHTML = `<span class="fail">✗ Erreur: ${e.message}</span>`;
+    }
+  };
+
+  window.testCount = function() {
+    const results = document.getElementById('results');
+    try {
+      const cnt = Gallery.count();
+      results.innerHTML = `<span class="pass">✓ Count: ${cnt} véhicule(s)</span>`;
+    } catch (e) {
+      results.innerHTML = `<span class="fail">✗ Erreur: ${e.message}</span>`;
+    }
+  };
+
+  window.testRemove = function() {
+    const results = document.getElementById('results');
+    try {
+      if (!window._lastId) return results.innerHTML = `<span class="fail">✗ Pas d'ID sauvegardé</span>`;
+      const ok = Gallery.remove(window._lastId);
+      if (ok) {
+        results.innerHTML = `<span class="pass">✓ Véhicule supprimé</span>`;
+        window._lastId = null;
+      } else {
+        results.innerHTML = `<span class="fail">✗ Suppression échouée</span>`;
+      }
+    } catch (e) {
+      results.innerHTML = `<span class="fail">✗ Erreur: ${e.message}</span>`;
+    }
+  };
+
+  window.testPersistence = function() {
+    const results = document.getElementById('results');
+    try {
+      Gallery.save({
+        grid: [[[{ color: 'blue' }]]],
+        wheelPositions: [],
+        stats: { speed: 5 },
+        powers: {},
+        playerName: 'Persistence Test',
+      });
+      results.innerHTML = `<span class="info">✓ Véhicule créé. Rechargez la page et lancez List() pour vérifier.</span>`;
+    } catch (e) {
+      results.innerHTML = `<span class="fail">✗ Erreur: ${e.message}</span>`;
+    }
+  };
+
+  window.clearAll = function() {
+    const keys = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && k.startsWith('vehicle:')) keys.push(k);
+    }
+    keys.forEach(k => localStorage.removeItem(k));
+    document.getElementById('results').innerHTML = `<span class="info">✓ ${keys.length} clé(s) supprimées</span>`;
+  };
+
+  console.log('[test-gallery] Module chargé. Fonctions disponibles: save, list, get, remove, count');
+</script>
+
+</body>
+</html>

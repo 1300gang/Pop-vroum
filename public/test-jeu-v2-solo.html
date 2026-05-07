@@ -1,0 +1,760 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Pop Vroum — Test jeu V2 solo</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      height: 100%;
+      overflow: hidden;
+      background: #1a1a2e;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      color: #fff;
+    }
+
+    #jeu {
+      position: fixed;
+      inset: 0;
+      width: 100vw;
+      height: 100vh;
+      display: block;
+      touch-action: none;
+    }
+
+    /* ---- HUD gauche (infos véhicule) ---- */
+    #hud-gauche {
+      position: fixed;
+      top: 12px;
+      left: 12px;
+      background: rgba(0, 0, 0, 0.6);
+      backdrop-filter: blur(4px);
+      border-radius: 10px;
+      padding: 12px 16px;
+      min-width: 180px;
+      max-width: 240px;
+      pointer-events: none;
+      z-index: 10;
+      line-height: 1.5;
+      font-size: 13px;
+    }
+
+    #nom-vehicule {
+      font-size: 15px;
+      font-weight: 700;
+      color: #ffd166;
+      margin-bottom: 8px;
+    }
+
+    #couleurs {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      margin-bottom: 8px;
+    }
+
+    .pill {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 99px;
+      font-size: 11px;
+      font-weight: 600;
+      color: #fff;
+      text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+    }
+
+    .stat-ligne {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      opacity: 0.9;
+    }
+
+    .stat-val { color: #a8e6cf; font-weight: 600; }
+
+    .sep { border: none; border-top: 1px solid rgba(255,255,255,0.12); margin: 6px 0; }
+
+    .pouvoir-ligne {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      line-height: 1.6;
+    }
+
+    .pouvoir-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .pouvoir-barre-wrap {
+      flex: 1;
+      height: 4px;
+      background: rgba(255,255,255,0.1);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+
+    .pouvoir-barre {
+      height: 100%;
+      border-radius: 2px;
+      transition: width 0.3s;
+    }
+
+    /* ---- HUD droit (preview + boutons) ---- */
+    #hud-droite {
+      position: fixed;
+      top: 12px;
+      right: 12px;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 6px;
+      z-index: 10;
+    }
+
+    #preview-wrap {
+      background: rgba(0, 0, 0, 0.6);
+      backdrop-filter: blur(4px);
+      border-radius: 10px;
+      padding: 6px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    #preview {
+      display: block;
+      border-radius: 6px;
+    }
+
+    .btn {
+      background: #667eea;
+      color: #fff;
+      border: none;
+      padding: 8px 14px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 13px;
+      transition: background 0.15s;
+    }
+    .btn:hover  { background: #5568d3; }
+    .btn:active { background: #4455c0; }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    /* ---- HUD bas (vitesse + contrôles) ---- */
+    #hud-bas {
+      position: fixed;
+      bottom: 12px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      background: rgba(0, 0, 0, 0.55);
+      backdrop-filter: blur(4px);
+      border-radius: 8px;
+      padding: 7px 16px;
+      font-size: 13px;
+      pointer-events: none;
+      z-index: 10;
+    }
+
+    #drift-label {
+      color: #ff6b6b;
+      font-weight: 700;
+      animation: clignoter 0.4s step-start infinite;
+      display: none;
+    }
+
+    @keyframes clignoter {
+      50% { opacity: 0; }
+    }
+
+    .controles-hint {
+      opacity: 0.55;
+      font-size: 12px;
+    }
+
+    /* ---- Boutons de contrôle tactile ---- */
+    #ctrl-boutons {
+      position: fixed;
+      bottom: 56px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 10px;
+      z-index: 12;
+      pointer-events: all;
+    }
+
+    .ctrl-btn {
+      background: rgba(255, 255, 255, 0.12);
+      border: 2px solid rgba(255, 255, 255, 0.3);
+      border-radius: 10px;
+      color: #fff;
+      font-size: 15px;
+      font-family: inherit;
+      font-weight: 600;
+      padding: 10px 22px;
+      cursor: pointer;
+      user-select: none;
+      -webkit-user-select: none;
+      touch-action: none;
+      transition: background 0.1s;
+    }
+
+    .ctrl-btn:active,
+    .ctrl-btn.actif {
+      background: rgba(255, 255, 255, 0.32);
+      border-color: rgba(255, 255, 255, 0.7);
+    }
+
+    /* ---- Bandeau arrivée ---- */
+    #banner {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(255, 209, 102, 0.96);
+      color: #222;
+      padding: 22px 44px;
+      border-radius: 14px;
+      font-size: 28px;
+      font-weight: 700;
+      display: none;
+      z-index: 20;
+      text-align: center;
+    }
+
+    /* ---- HUD cohésion (haut centre) ---- */
+    #hud-cohesion {
+      position: fixed;
+      top: 12px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0, 0, 0, 0.6);
+      backdrop-filter: blur(4px);
+      border-radius: 8px;
+      padding: 7px 16px;
+      z-index: 10;
+      pointer-events: none;
+      font-size: 12px;
+      display: none;
+      align-items: center;
+      gap: 10px;
+      white-space: nowrap;
+    }
+
+    #cohesion-label { opacity: 0.7; }
+
+    #cohesion-bar-wrap {
+      width: 80px;
+      height: 6px;
+      background: rgba(255,255,255,0.15);
+      border-radius: 3px;
+      overflow: hidden;
+    }
+
+    #cohesion-bar {
+      height: 100%;
+      background: #44ff99;
+      border-radius: 3px;
+      transition: width 0.3s;
+    }
+
+    #cohesion-val { color: #44ff99; font-weight: 600; }
+
+    /* ---- Écran de démarrage ---- */
+    #ecran-demarrage {
+      position: fixed;
+      inset: 0;
+      background: #1a1a2e;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 110;
+    }
+
+    #demarrage-corps {
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 18px;
+      padding: 36px 44px;
+      text-align: center;
+      max-width: 400px;
+      width: 90%;
+    }
+
+    #demarrage-corps h1 {
+      font-size: 22px;
+      font-weight: 700;
+      margin-bottom: 6px;
+      color: #ffd166;
+    }
+
+    #demarrage-corps p {
+      font-size: 13px;
+      opacity: 0.6;
+      margin-bottom: 28px;
+      line-height: 1.5;
+    }
+
+    .demarrage-ligne {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 24px;
+    }
+
+    .demarrage-ligne label {
+      font-size: 14px;
+      opacity: 0.85;
+    }
+
+    .demarrage-ligne input[type="range"] {
+      width: 200px;
+      accent-color: #667eea;
+      cursor: pointer;
+    }
+
+    #bots-val {
+      display: inline-block;
+      min-width: 16px;
+      color: #ffd166;
+    }
+
+    #btn-lancer {
+      background: #667eea;
+      color: #fff;
+      border: none;
+      border-radius: 10px;
+      padding: 12px 36px;
+      font-size: 16px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: background 0.15s, transform 0.1s;
+    }
+
+    #btn-lancer:hover  { background: #5568d3; }
+    #btn-lancer:active { transform: scale(0.97); }
+
+    /* Zone prévisualisation véhicule dans l'écran de démarrage */
+    #demarrage-vehicule {
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 10px;
+      padding: 12px 16px;
+      margin-bottom: 16px;
+      text-align: left;
+    }
+
+    #demarrage-vehicule-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+
+    #btn-reroll {
+      background: rgba(255,255,255,0.1);
+      border: 1px solid rgba(255,255,255,0.2);
+      border-radius: 6px;
+      color: #fff;
+      font-size: 16px;
+      padding: 3px 8px;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+
+    #btn-reroll:hover { background: rgba(255,255,255,0.22); }
+
+    #demarrage-couleurs {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      margin-bottom: 8px;
+    }
+
+    #demarrage-stats {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .demarrage-stat-ligne {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 11px;
+      opacity: 0.8;
+    }
+
+    .demarrage-stat-label { min-width: 72px; }
+
+    .demarrage-stat-barre-wrap {
+      flex: 1;
+      height: 4px;
+      background: rgba(255,255,255,0.12);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+
+    .demarrage-stat-barre {
+      height: 100%;
+      background: #a8e6cf;
+      border-radius: 2px;
+    }
+
+    .demarrage-stat-val { min-width: 28px; text-align: right; color: #a8e6cf; font-weight: 600; }
+
+    .demarrage-sep {
+      border: none;
+      border-top: 1px solid rgba(255,255,255,0.1);
+      margin: 16px 0;
+    }
+
+    /* Icônes bots dans le HUD gauche */
+    #bots-hud {
+      display: flex;
+      gap: 5px;
+      flex-wrap: wrap;
+      margin-top: 4px;
+    }
+
+    .bot-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      display: inline-block;
+    }
+
+    /* ---- Overlay chargement ---- */
+    #loading {
+      position: fixed;
+      inset: 0;
+      background: #1a1a2e;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      z-index: 100;
+      font-size: 16px;
+      color: rgba(255, 255, 255, 0.7);
+    }
+
+    #loading-bar-wrap {
+      width: 240px;
+      height: 6px;
+      background: rgba(255,255,255,0.15);
+      border-radius: 3px;
+      overflow: hidden;
+    }
+
+    #loading-bar {
+      height: 100%;
+      width: 0%;
+      background: #667eea;
+      border-radius: 3px;
+      transition: width 0.3s;
+    }
+
+    /* ---- Panel debug physique V2 ---- */
+    #debug-phys {
+      position: fixed;
+      bottom: 56px;
+      right: 12px;
+      background: rgba(0, 0, 0, 0.78);
+      backdrop-filter: blur(6px);
+      border: 1px solid rgba(68, 136, 255, 0.3);
+      border-radius: 10px;
+      padding: 10px 14px;
+      min-width: 210px;
+      pointer-events: auto;
+      z-index: 10;
+      font-size: 12px;
+      line-height: 1.65;
+    }
+
+    #debug-phys-titre {
+      font-size: 13px;
+      font-weight: 700;
+      color: #4488ff;
+      margin-bottom: 6px;
+      letter-spacing: 0.02em;
+    }
+
+    .debug-ligne {
+      display: flex;
+      justify-content: space-between;
+      gap: 6px;
+    }
+
+    .debug-lbl { opacity: 0.55; }
+
+    .debug-val { color: #a8e6cf; font-variant-numeric: tabular-nums; }
+
+    #debug-phys input[type="range"] {
+      width: 100%;
+      accent-color: #ff6b6b;
+      cursor: pointer;
+      margin-top: 2px;
+    }
+
+    /* ---- Bouton quitter ---- */
+    #btn-quitter {
+      position: fixed;
+      top: 12px;
+      left: 12px;
+      z-index: 30;
+      background: rgba(0, 0, 0, 0.55);
+      backdrop-filter: blur(4px);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      color: rgba(255, 255, 255, 0.6);
+      border-radius: 8px;
+      padding: 6px 12px;
+      font-size: 13px;
+      cursor: pointer;
+      transition: background .15s, color .15s;
+    }
+
+    #btn-quitter:hover {
+      background: rgba(200, 50, 50, 0.7);
+      color: #fff;
+    }
+
+    /* ---- Modale de confirmation ---- */
+    #modale-quitter {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.75);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 50;
+    }
+
+    #modale-quitter.visible { display: flex; }
+
+    #modale-quitter .modale-corps {
+      background: #1a1a2e;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 14px;
+      padding: 28px 32px;
+      max-width: 360px;
+      width: 90%;
+      text-align: center;
+    }
+
+    #modale-quitter h2 { font-size: 18px; margin-bottom: 10px; }
+
+    #modale-quitter p {
+      font-size: 13px;
+      opacity: 0.6;
+      margin-bottom: 22px;
+      line-height: 1.5;
+    }
+
+    #modale-quitter .modale-actions { display: flex; gap: 10px; justify-content: center; }
+
+    #btn-confirmer-quitter {
+      background: #e74c3c;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      padding: 9px 22px;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    #btn-confirmer-quitter:hover { opacity: .85; }
+
+    #btn-annuler-quitter {
+      background: rgba(255, 255, 255, 0.08);
+      color: #fff;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 8px;
+      padding: 9px 22px;
+      font-size: 14px;
+      cursor: pointer;
+    }
+
+    #btn-annuler-quitter:hover { background: rgba(255, 255, 255, 0.14); }
+  </style>
+</head>
+<body>
+
+  <!-- Canvas principal -->
+  <canvas id="jeu"></canvas>
+
+  <!-- Bouton quitter -->
+  <button id="btn-quitter">× Quitter</button>
+
+  <!-- Modale de confirmation -->
+  <div id="modale-quitter">
+    <div class="modale-corps">
+      <h2>Quitter le test ?</h2>
+      <p>Vous serez redirigé vers l'accueil.</p>
+      <div class="modale-actions">
+        <button id="btn-confirmer-quitter">Quitter</button>
+        <button id="btn-annuler-quitter">Annuler</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    document.getElementById('btn-quitter').addEventListener('click', () => {
+      document.getElementById('modale-quitter').classList.add('visible');
+    });
+    document.getElementById('btn-annuler-quitter').addEventListener('click', () => {
+      document.getElementById('modale-quitter').classList.remove('visible');
+    });
+    document.getElementById('btn-confirmer-quitter').addEventListener('click', () => {
+      window.location.href = '/';
+    });
+  </script>
+
+  <!-- HUD gauche — infos véhicule -->
+  <div id="hud-gauche">
+    <div id="nom-vehicule">Génération…</div>
+    <div id="couleurs"></div>
+    <hr class="sep">
+    <div class="stat-ligne">
+      <span>Vitesse max</span>
+      <span class="stat-val" id="stat-speed">–</span>
+    </div>
+    <div class="stat-ligne">
+      <span>Adhérence</span>
+      <span class="stat-val" id="stat-grip">–</span>
+    </div>
+    <div class="stat-ligne">
+      <span>Accélération</span>
+      <span class="stat-val" id="stat-accel">–</span>
+    </div>
+    <hr class="sep">
+    <div id="pouvoirs"></div>
+    <hr class="sep">
+    <div class="stat-ligne" style="opacity:0.6; font-size:11px;">
+      <span id="map-info">Map : …</span>
+    </div>
+  </div>
+
+  <!-- HUD droit — preview 3D + boutons -->
+  <div id="hud-droite">
+    <div id="preview-wrap">
+      <canvas id="preview" width="190" height="140"></canvas>
+    </div>
+    <button class="btn" id="btn-vehicule">🎲 Nouveau véhicule</button>
+    <button class="btn" id="btn-map">🗺 Nouvelle map</button>
+  </div>
+
+  <!-- Boutons de contrôle tactile -->
+  <div id="ctrl-boutons">
+    <button class="ctrl-btn" id="btn-ctrl-frein">⬛ Frein</button>
+    <button class="ctrl-btn" id="btn-ctrl-reculer">◀ Reculer</button>
+  </div>
+
+  <!-- HUD bas — vitesse + drift + contrôles -->
+  <div id="hud-bas">
+    <span>⚡ <b id="speed-val">0.0</b> u/s</span>
+    <span id="drift-label">DÉRAPAGE</span>
+    <span class="controles-hint">← → ↓ frein &nbsp;|&nbsp; R reculer &nbsp;|&nbsp; ou toucher les bords / boutons</span>
+  </div>
+
+  <!-- HUD cohésion -->
+  <div id="hud-cohesion">
+    <span id="cohesion-label">Groupe</span>
+    <div id="cohesion-bar-wrap"><div id="cohesion-bar" style="width:0%"></div></div>
+    <span id="cohesion-val">0 %</span>
+  </div>
+
+  <!-- Panel debug physique V2 -->
+  <div id="debug-phys">
+    <div id="debug-phys-titre">⚡ Physique V2</div>
+    <div class="debug-ligne">
+      <span class="debug-lbl">Velocity</span>
+      <span class="debug-val">(<span id="dbg-vx">0.00</span>, <span id="dbg-vz">0.00</span>)</span>
+    </div>
+    <div class="debug-ligne">
+      <span class="debug-lbl">|v| m/s</span>
+      <span class="debug-val" id="dbg-speed">0.00</span>
+    </div>
+    <div class="debug-ligne">
+      <span class="debug-lbl">v_forward</span>
+      <span class="debug-val" id="dbg-vfwd">0.00</span>
+    </div>
+    <div class="debug-ligne">
+      <span class="debug-lbl">v_lateral</span>
+      <span class="debug-val" id="dbg-vlat">0.00</span>
+    </div>
+    <div class="debug-ligne">
+      <span class="debug-lbl">Angle</span>
+      <span class="debug-val" id="dbg-angle">0.0°</span>
+    </div>
+    <div class="debug-ligne">
+      <span class="debug-lbl">v_lat seuil</span>
+      <span class="debug-val" id="dbg-threshold">—</span>
+    </div>
+    <div class="debug-ligne">
+      <span class="debug-lbl">Dérapage</span>
+      <span id="dbg-drift" style="font-weight:700;color:#44ff99">NON</span>
+    </div>
+    <hr class="sep" style="margin:6px 0">
+    <div style="opacity:0.7;font-size:11px;margin-bottom:2px">
+      Adhérence grip_stat : <b id="grip-val">0.50</b>
+    </div>
+    <div style="opacity:0.45;font-size:10px;margin-bottom:3px">
+      bas = dérapage facile &nbsp;|&nbsp; haut = kart stable
+    </div>
+    <input type="range" id="slider-grip" min="0.05" max="2.0" step="0.05" value="0.5">
+    <div style="margin-top:6px;font-size:10px;opacity:0.45;line-height:1.5">
+      🔵 flèche velocity &nbsp;·&nbsp; 🟠 flèche angle
+    </div>
+  </div>
+
+  <!-- Bandeau arrivée -->
+  <div id="banner">🏁 Arrivée !</div>
+
+  <!-- Écran de démarrage -->
+  <div id="ecran-demarrage">
+    <div id="demarrage-corps">
+      <h1>🏁 Pop Vroum — Test solo</h1>
+
+      <!-- Prévisualisation du véhicule -->
+      <div id="demarrage-vehicule">
+        <div id="demarrage-vehicule-header">
+          <span id="demarrage-nom-vehicule" style="font-weight:700;color:#ffd166">Génération…</span>
+          <button id="btn-reroll" title="Autre véhicule aléatoire">🎲</button>
+        </div>
+        <div id="demarrage-couleurs"></div>
+        <div id="demarrage-stats"></div>
+      </div>
+
+      <hr class="demarrage-sep">
+
+      <div class="demarrage-ligne">
+        <label>Nombre de bots : <b id="bots-val">2</b></label>
+        <input type="range" id="slider-bots" min="0" max="4" value="2" step="1">
+      </div>
+      <button id="btn-lancer">▶ Lancer la partie</button>
+    </div>
+  </div>
+
+  <!-- Overlay chargement -->
+  <div id="loading" style="display:none">
+    <div>Chargement…</div>
+    <div id="loading-bar-wrap">
+      <div id="loading-bar"></div>
+    </div>
+    <div id="loading-msg" style="font-size:13px;"></div>
+  </div>
+
+  <script type="module" src="js/pages/test-jeu-v2-solo-page.js"></script>
+</body>
+</html>

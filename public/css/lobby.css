@@ -1,0 +1,208 @@
+/* Styles page lobby — Story 5.3 */
+
+/* ---- Structure générale ---- */
+
+body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-height: 100vh;
+  padding: 1.5rem 1rem 2rem;
+  gap: 1.5rem;
+}
+
+#entete {
+  text-align: center;
+}
+
+#entete h1 {
+  font-size: 2rem;
+  font-weight: bold;
+  color: var(--couleur-accent);
+  letter-spacing: 0.05em;
+}
+
+/* ---- Statut connexion ---- */
+
+#statut-connexion {
+  margin-top: 0.4rem;
+  font-size: 1rem;
+  font-weight: bold;
+}
+
+.statut-attente  { color: #aaa; }
+.statut-ok       { color: var(--couleur-vert); }
+.statut-erreur   { color: var(--couleur-rouge); }
+.statut-partie   { color: var(--couleur-accent); }
+
+/* ---- Panneau "pas de véhicule" ---- */
+
+#panneau-sans-vehicule {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  margin-top: 3rem;
+  font-size: 1.2rem;
+  text-align: center;
+  color: #aaa;
+}
+
+.btn-primaire {
+  display: inline-block;
+  padding: 0.75rem 1.5rem;
+  background: var(--couleur-accent);
+  color: #000;
+  font-weight: bold;
+  border-radius: var(--rayon-bord);
+  text-decoration: none;
+  font-size: 1rem;
+}
+
+.btn-primaire:hover { opacity: 0.85; }
+
+/* ---- Lobby principal ---- */
+
+#panneau-lobby {
+  width: 100%;
+  max-width: 900px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2rem;
+}
+
+/* ---- Grille joueurs ---- */
+
+#grille-joueurs {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 1rem;
+  width: 100%;
+}
+
+/* ---- Carte joueur ---- */
+
+.carte-joueur {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: rgba(255, 255, 255, 0.05);
+  border: 2px solid rgba(255, 255, 255, 0.1);
+  border-radius: var(--rayon-bord);
+  padding: 0.75rem;
+  width: 160px;
+  gap: 0.5rem;
+  transition: border-color 0.3s;
+}
+
+.carte-joueur.pret {
+  border-color: var(--couleur-vert);
+}
+
+.carte-joueur.moi {
+  border-color: var(--couleur-accent);
+}
+
+.carte-joueur.moi.pret {
+  border-color: var(--couleur-vert);
+}
+
+/* Canvas Three.js du véhicule */
+.carte-joueur canvas {
+  width: 140px;
+  height: 110px;
+  border-radius: 4px;
+  background: #111;
+  display: block;
+}
+
+.carte-pseudo {
+  font-size: 0.9rem;
+  font-weight: bold;
+  text-align: center;
+  color: var(--couleur-texte);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 140px;
+}
+
+.carte-pseudo.moi::after {
+  content: ' (moi)';
+  font-weight: normal;
+  color: var(--couleur-accent);
+  font-size: 0.8em;
+}
+
+.carte-badge {
+  font-size: 0.8rem;
+  font-weight: bold;
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+}
+
+.carte-badge.attente {
+  background: rgba(255,255,255,0.1);
+  color: #aaa;
+}
+
+.carte-badge.pret {
+  background: var(--couleur-vert);
+  color: #000;
+}
+
+/* ---- Zone action ---- */
+
+#zone-action {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.btn-pret {
+  font-size: 1.3rem;
+  padding: 1rem 2.5rem;
+  background: var(--couleur-accent);
+  color: #000;
+  border-radius: var(--rayon-bord);
+  font-weight: bold;
+  transition: background 0.2s, transform 0.1s;
+}
+
+.btn-pret:active { transform: scale(0.97); }
+
+.btn-pret.est-pret {
+  background: var(--couleur-vert);
+  color: #000;
+}
+
+.message-attente {
+  color: #888;
+  font-size: 0.95rem;
+  text-align: center;
+}
+
+/* ---- Bandeau erreur ---- */
+
+#bandeau-erreur {
+  position: fixed;
+  bottom: 1.5rem;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--couleur-rouge);
+  color: #fff;
+  padding: 0.75rem 1.5rem;
+  border-radius: var(--rayon-bord);
+  font-weight: bold;
+  font-size: 0.95rem;
+  z-index: 100;
+  max-width: 90vw;
+  text-align: center;
+}
+
+/* ---- Utilitaires ---- */
+
+.cache { display: none !important; }

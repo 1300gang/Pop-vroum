@@ -1,0 +1,17 @@
+{
+  "id": "block_seed_sticky_zone",
+  "name": "Zone collante",
+  "createdAt": "2026-04-30T00:00:00Z",
+  "atelier": "_seed",
+  "note": "Après rotation 90° CW : couloir avec zone collante au centre",
+  "grid": [
+    ["dur", "dur", "dur", "dur", "dur", "dur", "dur", "dur"],
+    ["dur", null,  null,  null,  null,  null,  null,  "dur"],
+    [null,  null,"sticky","sticky","sticky","sticky",null, null],
+    [null,  null,"sticky","sticky","sticky","sticky",null, null],
+    [null,  null,"sticky","sticky","sticky","sticky",null, null],
+    [null,  null,"sticky","sticky","sticky","sticky",null, null],
+    ["dur", null,  null,  null,  null,  null,  null,  "dur"],
+    ["dur", "dur", "dur", "dur", "dur", "dur", "dur", "dur"]
+  ]
+}

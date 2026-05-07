@@ -1,0 +1,16 @@
+{
+  "name": "pop-vroum",
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "generate-qr": "node tools/generate-qr.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "socket.io": "^4.7.2"
+  },
+  "devDependencies": {
+    "qrcode": "^1.5.3"
+  }
+}

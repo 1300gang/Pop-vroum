@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Pop Vroum — Lobby</title>
+  <link rel="stylesheet" href="css/shared.css">
+  <link rel="stylesheet" href="css/lobby.css">
+</head>
+<body>
+
+  <header id="entete">
+    <h1>Pop Vroum</h1>
+    <p id="statut-connexion" class="statut-attente">Connexion…</p>
+  </header>
+
+  <!-- Cas : aucun véhicule en localStorage -->
+  <section id="panneau-sans-vehicule" class="cache">
+    <p>Aucun véhicule trouvé.</p>
+    <p>Scanne d'abord ta feuille !</p>
+    <a href="scan.html" class="btn-primaire">Aller au scanner →</a>
+  </section>
+
+  <!-- Cas principal : lobby actif -->
+  <main id="panneau-lobby">
+
+    <div id="grille-joueurs">
+      <!-- Cartes joueurs insérées dynamiquement par lobby-page.js -->
+    </div>
+
+    <div id="zone-action">
+      <button id="btn-pret" class="btn-pret">Je suis prêt !</button>
+      <p id="message-attente" class="message-attente">En attente des autres joueurs…</p>
+    </div>
+
+  </main>
+
+  <!-- Message d'erreur flottant -->
+  <div id="bandeau-erreur" class="cache" role="alert"></div>
+
+  <script type="module" src="js/pages/lobby-page.js"></script>
+</body>
+</html>

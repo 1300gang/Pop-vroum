@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pop Vroum — Test jeu solo</title>
+  <link rel="stylesheet" href="css/shared.css">
+  <style>
+    html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; background: #1a1a2e; font-family: -apple-system, BlinkMacSystemFont, sans-serif; }
+    #canvas { width: 100vw; height: 100vh; display: block; touch-action: none; }
+    #hud {
+      position: fixed; top: 12px; left: 12px; color: #fff;
+      background: rgba(0,0,0,0.55); padding: 10px 14px; border-radius: 8px;
+      font-size: 13px; line-height: 1.5; pointer-events: none; z-index: 10;
+    }
+    #hud b { color: #ffd166; }
+    #controls {
+      position: fixed; top: 12px; right: 12px; display: flex; gap: 8px; z-index: 10;
+    }
+    #controls button {
+      background: #667eea; color: #fff; border: none; padding: 8px 14px;
+      border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 13px;
+    }
+    #controls button:hover { background: #5568d3; }
+    #controls label {
+      display: inline-flex; align-items: center; gap: 6px; color: #fff;
+      background: rgba(0,0,0,0.55); padding: 6px 10px; border-radius: 6px; font-size: 13px;
+    }
+    #banner {
+      position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+      background: rgba(255,209,102,0.95); color: #222; padding: 24px 40px;
+      border-radius: 12px; font-size: 28px; font-weight: 700; display: none; z-index: 20;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="canvas"></canvas>
+  <div id="hud">
+    <div><b>Pop Vroum — Test solo</b></div>
+    <div>Map : <span id="map-name">…</span></div>
+    <div>Vitesse : <span id="speed">0</span> u/s</div>
+    <div>Position : <span id="pos">0, 0</span></div>
+    <div>Mode : <span id="mode">auto-aléatoire</span></div>
+    <div style="margin-top:6px; opacity:0.75;">Flèches/ZQSD pour piloter manuellement</div>
+  </div>
+  <div id="controls">
+    <label><input type="checkbox" id="ai-toggle" checked> Pilote auto</label>
+    <button id="regen">🎲 Nouvelle map</button>
+  </div>
+  <div id="banner">🏁 Arrivée !</div>
+  <script type="module" src="js/pages/test-game-page.js"></script>
+</body>
+</html>
