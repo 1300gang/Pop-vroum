@@ -1,0 +1,18 @@
+{
+  "id": "block_seed_rampe_dir",
+  "name": "Rampes directionnelles",
+  "createdAt": "2026-05-12T00:00:00Z",
+  "atelier": "_seed",
+  "exits": ["N", "S"],
+  "note": "Large couloir avec rampes montantes (ramp_s) au centre, encadrées de rampes latérales (ramp_e / ramp_o) pour canaliser le flux",
+  "grid": [
+    ["dur", "dur", null,    null,    null,    null,    "dur", "dur"],
+    ["dur", null,  null,    null,    null,    null,    null,  "dur"],
+    ["dur", null,  "ramp_e","ramp_s","ramp_s","ramp_o",null,  "dur"],
+    ["dur", null,  "ramp_e","ramp_s","ramp_s","ramp_o",null,  "dur"],
+    ["dur", null,  "ramp_e","ramp_s","ramp_s","ramp_o",null,  "dur"],
+    ["dur", null,  "ramp_e","ramp_s","ramp_s","ramp_o",null,  "dur"],
+    ["dur", null,  null,    null,    null,    null,    null,  "dur"],
+    ["dur", "dur", null,    null,    null,    null,    "dur", "dur"]
+  ]
+}

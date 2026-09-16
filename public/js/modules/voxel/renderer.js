@@ -96,21 +96,31 @@ export function disposeVehicleGroup(group) {
 // ---- Roll visuel en dérapage (E03-S13) ----
 
 /**
- * Applique une inclinaison Z au mesh du véhicule pour renforcer la sensation de drift.
+ * Applique le roll latéral du véhicule en dérapage.
  * À appeler chaque frame après avoir mis à jour rotation.y.
  *
- *   rollAngle = drifting ? -steerInput × 0.3 : 0
- *   group.rotation.z = lerp(group.rotation.z, rollAngle, 0.1)
+ * L'axe dépend de l'orientation du mesh :
+ *  - axis='z' (défaut) : pages où rotation.y = angle - PI/2 (véhicule face +Z)
+ *    → rollTarget = -sign(vLateral) × 0.25 sur rotation.z
+ *  - axis='x' : pages où rotation.y = -angle (véhicule face +X, convention test-solo)
+ *    → rollTarget = +sign(vLateral) × 0.25 sur rotation.x
  *
- * L'interpolation lerp assure un retour progressif à 0 en sortie de drift (T-S13-2).
- *
- * @param {THREE.Group} group       — groupe voxel du véhicule
- * @param {boolean}     drifting    — état de dérapage courant
- * @param {number}      steerInput  — entrée de virage ∈ [-1, 1]
+ * @param {THREE.Group} group    — groupe voxel du véhicule
+ * @param {boolean}     drifting — état de dérapage courant
+ * @param {number}      vLateral — vitesse latérale (v_lateral de decompose())
+ * @param {string}      axis     — 'z' (défaut) ou 'x'
  */
-export function applyRoll(group, drifting, steerInput) {
-  const rollAngle = drifting ? -steerInput * 0.3 : 0;
-  group.rotation.z = THREE.MathUtils.lerp(group.rotation.z, rollAngle, 0.1);
+export function applyRoll(group, drifting, vLateral, axis = 'z') {
+  if (axis === 'x') {
+    const rollTarget = drifting ? Math.sign(vLateral) * 0.25 : 0;
+    group.rotation.x = THREE.MathUtils.lerp(group.rotation.x, rollTarget, 0.12);
+    // Annule toute valeur résiduelle sur z (évite le pitch hérité d'un état précédent)
+    group.rotation.z = THREE.MathUtils.lerp(group.rotation.z, 0, 0.2);
+  } else {
+    const rollTarget = drifting ? -Math.sign(vLateral) * 0.25 : 0;
+    group.rotation.z = THREE.MathUtils.lerp(group.rotation.z, rollTarget, 0.12);
+    group.rotation.x = THREE.MathUtils.lerp(group.rotation.x, 0, 0.2);
+  }
 }
 
 /**

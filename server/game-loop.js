@@ -1,12 +1,11 @@
 // Boucle de jeu autoritaire côté serveur.
 //
-// Les joueurs sont identifiés par un playerId stable (= vehicle.id ou
-// un fallback généré) et non par socketId — cela permet le rejoin après
-// navigation lobby → game.html.
+// Physique V2 : utilise les mêmes modules que le client (physics.js, collision.js).
+// Map : générée via map-generator.js (mode graph + SOLO-05 entry/exit).
 //
 // API publique :
-//   startMatch(matchId, players, io, roomId) → Promise<map>
-//   rejoinPlayer(matchId, playerId, newSocketId, io) → boolean
+//   startMatch(matchId, players, io, roomId) → Promise<{map, playerInfos}>
+//   rejoinPlayer(matchId, playerId, newSocketId, socket) → boolean
 //   applyInput(matchId, socketId, inputs)     → void
 //   stopMatch(matchId)                        → void
 //   getMatch(matchId)                         → MatchState | null
@@ -17,10 +16,24 @@ import { join, dirname }     from 'path';
 import { fileURLToPath }     from 'url';
 import * as MatchEnd         from './match-end.js';
 
+// Modules partagés client/serveur (pur JS, pas de dépendances navigateur)
+import {
+  setConfig as setPhysicsConfig,
+  decompose, computeForces, detectDrift, computeTurnRate,
+  applyBounce, checkDamage, createState,
+} from '../public/js/modules/game/physics.js';
+import { checkTerrain } from '../public/js/modules/game/collision.js';
+import {
+  setConfig as setMapGenConfig,
+  generate  as generateMapData,
+  getSurfaceGrip,
+  dedupePoolById,
+  BLOCK_SIZE,
+} from '../public/js/modules/game/map-generator.js';
+
 const __dirname  = dirname(fileURLToPath(import.meta.url));
 const TICK_RATE  = 30;
 const TICK_MS    = Math.round(1000 / TICK_RATE);
-const BLOCK_SIZE = 8;
 
 // ---- Cache config + pool ----
 
@@ -31,6 +44,11 @@ async function _chargerConfig() {
   if (_config) return _config;
   const raw = await readFile(join(__dirname, '..', 'config', 'gameplay.json'), 'utf-8');
   _config = JSON.parse(raw);
+
+  // Injecter la config dans les modules partagés
+  setPhysicsConfig({ ..._config.vehicleStats, ..._config.physics });
+  setMapGenConfig(_config);
+
   return _config;
 }
 
@@ -56,10 +74,13 @@ async function _chargerBlockPool() {
   for (const b of [...seed, ...generated]) {
     if (b.special === 'depart') { depart = b; continue; }
     if (b.special === 'arrivee') { arrivee = b; continue; }
+    // Les blocs seed (avec exits) ne sont pas filtrés par _estJouable :
+    // le mode graph gère la compatibilité via les exits
+    if (b.exits && b.exits.length > 0) { pool.push(b); continue; }
     if (_estJouable(b)) pool.push(b);
   }
 
-  _blockPool = { depart, arrivee, pool };
+  _blockPool = { depart, arrivee, pool: dedupePoolById(pool) };
   console.log(`Pool chargé : ${pool.length} bloc(s) jouable(s), départ: ${!!depart}, arrivée: ${!!arrivee}`);
   return _blockPool;
 }
@@ -71,11 +92,8 @@ export function reloadPool() {
 
 _chargerBlockPool().catch(err => console.error('[pool] Erreur chargement initial :', err));
 
-// ---- Validation jouabilité bloc ----
+// ---- Validation jouabilité bloc (mode legacy) ----
 
-// Vérifie qu'un bloc peut être traversé en direction X (après rotation 90° CW).
-// Après rotation : rx=0 (entrée) = colonne gx=0 originale, rx=7 (sortie) = colonne gx=7 originale.
-// Les rangées gz=2..5 correspondent au couloir central (rz=2..5 après rotation).
 function _estJouable(bloc) {
   if (!bloc?.grid || bloc.grid.length !== BLOCK_SIZE) return false;
   const CORRIDOR_MIN = 2;
@@ -84,17 +102,19 @@ function _estJouable(bloc) {
       && _aPassageColonne(bloc.grid, BLOCK_SIZE - 1, CORRIDOR_MIN, CORRIDOR_MAX);
 }
 
-// Vérifie qu'au moins une cellule est passable dans la colonne gx, entre gz=min et gz=max
 function _aPassageColonne(grid, gx, gzMin, gzMax) {
   for (let gz = gzMin; gz <= gzMax; gz++) {
     const c = grid[gz]?.[gx];
     const v = (c && typeof c === 'object') ? c.v : c;
-    if (v === null || v === undefined || v === 'ramp' || v === 'boost' || v === 'sticky') return true;
+    if (v === null || v === undefined
+     || v === 'ramp' || v === 'boost' || v === 'sticky'
+     || v === 'bump' || v === 'ramp_n' || v === 'ramp_e'
+     || v === 'ramp_s' || v === 'ramp_o') return true;
   }
   return false;
 }
 
-// ---- Rotation 90° CW ----
+// ---- Rotation 90° CW (post-génération, pour mouvement en +X) ----
 
 function _rotate90CW(grid) {
   const n = grid.length;
@@ -107,167 +127,262 @@ function _rotate90CW(grid) {
   return result;
 }
 
-// ---- Génération map 8×8 ----
+// ---- Constantes physique serveur ----
 
-function _genererMap(poolData, cfg) {
-  const { depart, arrivee, pool } = poolData;
-  const mapCfg     = cfg.map ?? {};
-  const gridCols   = mapCfg.gridCols ?? 8;
-  const gridRows   = mapCfg.gridRows ?? 8;
-  const blockScale = mapCfg.blockScale ?? 2;
+const STUCK_THRESHOLD       = 0.4;  // secondes avant déclenchement du recul
+const AUTO_REVERSE_DURATION = 0.8;  // secondes de recul automatique
 
-  const blocmapSize = BLOCK_SIZE * blockScale;
-  const blocks = [];
+// ---- Gestion des matchs ----
 
-  for (let col = 0; col < gridCols; col++) {
-    for (let row = 0; row < gridRows; row++) {
-      let choisi;
-      if (col === 0)                 choisi = depart;
-      else if (col === gridCols - 1) choisi = arrivee;
-      else                           choisi = pool[Math.floor(Math.random() * pool.length)];
+const matches = new Map();
 
-      const worldX = col * blocmapSize;
-      const worldZ = row * blocmapSize;
+/**
+ * Démarre un match.
+ */
+export async function startMatch(matchId, players, io, roomId) {
+  const cfg      = await _chargerConfig();
+  const poolData = await _chargerBlockPool();
 
-      blocks.push({
-        blockId:  choisi.id,
-        name:     choisi.name ?? '',
-        col,
-        row,
-        position: [worldX, worldZ],
-        grid:     _rotate90CW(choisi.grid),
-      });
-    }
+  if (poolData.pool.length === 0 && !poolData.depart) {
+    throw new Error('Pool de blocs vide et pas de bloc de départ');
   }
 
-  const totalWidth = gridCols * blocmapSize;
-  const totalDepth = gridRows * blocmapSize;
+  // Génération via map-generator (SOLO-05 : mode graph avec entry/exit coins)
+  const mapCfg    = cfg.map ?? {};
+  const gridSize  = mapCfg.gridCols ?? mapCfg.gridSize ?? 8;
+  const mapData   = await generateMapData(poolData, { gridSize });
 
-  const spawnX  = blocmapSize / 2;
-  const spawnZ  = totalDepth / 2;
-  const finishX = (gridCols - 0.5) * blocmapSize;
+  // Rotation 90° CW de chaque grille pour mouvement en +X
+  for (const bloc of mapData.blocks) {
+    bloc.grid = _rotate90CW(bloc.grid);
+  }
 
-  return {
-    id:             `map_${Date.now()}`,
-    gridCols,
-    gridRows,
-    blockScale,
-    blocks,
-    startPosition:  { x: spawnX, z: spawnZ, angle: Math.PI / 2 },
-    finishPosition: { x: finishX, z: totalDepth / 2 },
-    worldExtent:    { width: totalWidth, depth: totalDepth },
-  };
+  const blockScale = mapData.blockScale;
+
+  const playerStates = new Map();
+  const socketMap    = new Map();
+  const playerInfos  = [];
+
+  const soloCfg  = cfg.solo ?? {};
+  const physCfg  = cfg.physics;
+
+  players.forEach((p, i) => {
+    const stats    = p.vehicle?.stats ?? {};
+    const playerId = p.vehicle?.id ?? `player_${i}_${Date.now()}`;
+
+    socketMap.set(p.socketId, playerId);
+
+    // SOLO-05 : spawn aux positions calculées dans le bloc départ
+    const spawnPos = mapData.entry?.spawnPositions?.[i]
+                  ?? mapData.entry?.spawnPositions?.[0]
+                  ?? mapData.startPosition;
+
+    playerStates.set(playerId, {
+      playerId,
+      playerName:   p.playerName,
+      vehicleStats: {
+        speed: stats.speed ?? cfg.vehicleStats.baseSpeed,
+        grip:  stats.grip  ?? cfg.vehicleStats.baseGrip,
+        accel: stats.accel ?? cfg.vehicleStats.baseAccel,
+      },
+      physicsState: {
+        position:  { x: spawnPos.x, z: spawnPos.z },
+        velocity:  { x: 0, z: 0 },
+        angle:     mapData.startPosition?.angle ?? 0,
+        speed:     0,
+        drifting:  false,
+        elevation: 0,
+      },
+      latestInputs: { steering: 0, braking: 0, reversing: 0 },
+      connected:    true,
+      terrainState: { lastTerrain: null, onRamp: false, boostTimer: 0, rampTimer: 0 },
+      stuckTimer:       0,
+      autoReverseTimer: 0,
+    });
+
+    playerInfos.push({
+      playerId,
+      socketId:   p.socketId,
+      playerName: p.playerName,
+      vehicle:    p.vehicle,
+    });
+  });
+
+  let lastTick = Date.now();
+
+  const intervalId = setInterval(() => {
+    const now = Date.now();
+    const dt  = Math.min((now - lastTick) / 1000, 0.1);
+    lastTick  = now;
+
+    for (const ps of playerStates.values()) {
+      _tickJoueur(ps, mapData, blockScale, dt, cfg);
+    }
+
+    const positions = [...playerStates.values()].map(ps => ps.physicsState.position);
+    const cohesion  = _calculerCohesion(positions, cfg.cohesion);
+
+    const playersPayload = {};
+    for (const [pid, ps] of playerStates) {
+      const vel = ps.physicsState.velocity;
+      const velocityAngle = Math.atan2(vel.x, vel.z);
+      let driftAngle = velocityAngle - ps.physicsState.angle;
+      if (driftAngle >  Math.PI) driftAngle -= 2 * Math.PI;
+      if (driftAngle < -Math.PI) driftAngle += 2 * Math.PI;
+
+      playersPayload[pid] = {
+        playerName: ps.playerName,
+        position:   { ...ps.physicsState.position },
+        velocity:   { x: vel.x, z: vel.z },
+        angle:      ps.physicsState.angle,
+        speed:      ps.physicsState.speed,
+        drifting:   ps.physicsState.drifting,
+        driftAngle,
+        elevation:  ps.physicsState.elevation ?? 0,
+      };
+    }
+
+    io.to(roomId).emit('game:state', { matchId, players: playersPayload, cohesion });
+
+    MatchEnd.checkVictory(match);
+  }, TICK_MS);
+
+  const match = { id: matchId, playerStates, socketMap, map: mapData, intervalId, roomId, io, cfg };
+  matches.set(matchId, match);
+  console.log(`Match ${matchId} démarré — ${players.length} joueur(s), map ${mapData.gridCols}×${mapData.gridRows}`);
+
+  return { map: mapData, playerInfos };
 }
 
-// ---- Détection terrain (cellSize-aware) ----
+// ---- Tick physique V2 par joueur ----
 
-const VEHICLE_RADIUS = 0.65;
+function _tickJoueur(ps, map, blockScale, dt, cfg) {
+  const state    = ps.physicsState;
+  const inputs   = ps.latestInputs;
+  const ts       = ps.terrainState;
+  const physConsts = cfg.physics;
 
-function _checkTerrain(pos, blocks, cellSize) {
-  let softTerrain = null, hardCollision = false, pushX = 0, pushZ = 0;
-  const blocExtent = BLOCK_SIZE * cellSize;
+  // Détection terrain via collision.js partagé
+  const terrain = checkTerrain(state.position, map.blocks, blockScale, state.elevation);
 
-  for (const bloc of blocks) {
-    const [bx, bz] = bloc.position;
-    if (pos.x + VEHICLE_RADIUS < bx || pos.x - VEHICLE_RADIUS > bx + blocExtent) continue;
-    if (pos.z + VEHICLE_RADIUS < bz || pos.z - VEHICLE_RADIUS > bz + blocExtent) continue;
+  // Effets de terrain
+  if (terrain) {
+    if (terrain.softTerrain === 'boost' && ts.lastTerrain !== 'boost') ts.boostTimer = 1.5;
+    if (terrain.softTerrain === 'ramp') {
+      ts.onRamp = true;
+    } else if (ts.onRamp) {
+      ts.rampTimer = 1.0;
+      ts.onRamp    = false;
+    }
+    // SOLO-04 : bosse → pas d'impulsion Y sur serveur (2D), mais le bump est détecté comme softTerrain
+    ts.lastTerrain = terrain.softTerrain;
+    ts.boostTimer  = Math.max(0, ts.boostTimer - dt);
+    ts.rampTimer   = Math.max(0, ts.rampTimer  - dt);
 
-    const gxMin = Math.max(0, Math.floor((pos.x - VEHICLE_RADIUS - bx) / cellSize));
-    const gxMax = Math.min(BLOCK_SIZE - 1, Math.floor((pos.x + VEHICLE_RADIUS - bx) / cellSize));
-    const gzMin = Math.max(0, Math.floor((pos.z - VEHICLE_RADIUS - bz) / cellSize));
-    const gzMax = Math.min(BLOCK_SIZE - 1, Math.floor((pos.z + VEHICLE_RADIUS - bz) / cellSize));
-
-    for (let gz = gzMin; gz <= gzMax; gz++) {
-      for (let gx = gxMin; gx <= gxMax; gx++) {
-        const cell = bloc.grid[gz]?.[gx];
-        if (!cell) continue;
-        const cellX    = bx + gx * cellSize;
-        const cellZ    = bz + gz * cellSize;
-        const closestX = Math.max(cellX, Math.min(pos.x, cellX + cellSize));
-        const closestZ = Math.max(cellZ, Math.min(pos.z, cellZ + cellSize));
-        const dx = pos.x - closestX, dz = pos.z - closestZ;
-        const dist = Math.sqrt(dx * dx + dz * dz);
-        if (dist >= VEHICLE_RADIUS) continue;
-        if (cell === 'dur') {
-          hardCollision = true;
-          const pen = VEHICLE_RADIUS - dist;
-          if (dist > 0.001) { pushX += (dx / dist) * pen; pushZ += (dz / dist) * pen; }
-          else { pushX += pen; }
-        } else if (!softTerrain) {
-          softTerrain = cell;
-        }
+    // RACE-C04 : élévation du terrain
+    if (terrain.elevationTarget !== undefined) {
+      state.elevation = state.elevation + (terrain.elevationTarget - state.elevation) * 0.3;
+      if (terrain.elevationTarget === 0 && terrain.softTerrain === null) {
+        state.elevation = Math.max(0, state.elevation - dt * 4);
       }
     }
+  } else if (state.elevation > 0) {
+    state.elevation = Math.max(0, state.elevation - dt * 4);
   }
-  return { softTerrain: hardCollision ? null : softTerrain, hardCollision, pushX, pushZ };
-}
 
-// ---- Physique serveur ----
+  // Surface grip
+  const surfaceGrip = getSurfaceGrip(terrain?.softTerrain ?? null);
 
-function _tickPhysique(state, vehicleStats, inputs, dt, cfg, modifiers = {}) {
-  const ph        = cfg.physics;
-  const vs        = cfg.vehicleStats;
-  const maxSpeed  = (vehicleStats.speed ?? vs.baseSpeed) * (modifiers.maxSpeedMultiplier ?? 1);
-  const grip      = vehicleStats.grip   ?? vs.baseGrip;
-  const accelStat = vehicleStats.accel  ?? vs.baseAccel;
-
-  const accelRate  = ph.accelRate * (accelStat / vs.baseAccel);
-  const maxReverse = -maxSpeed * 0.4;
-
-  if (inputs.reversing) {
-    if (state.speed > 0) {
-      state.speed = Math.max(0, state.speed - ph.brakingDecel * dt);
-    } else {
-      state.speed = Math.max(maxReverse, state.speed - accelRate * 0.5 * dt);
+  // Recul automatique si bloqué dans un mur
+  if (ps.autoReverseTimer > 0) {
+    ps.autoReverseTimer -= dt;
+    if (ps.autoReverseTimer <= 0) ps.stuckTimer = 0;
+  } else if (terrain?.hardCollision) {
+    ps.stuckTimer += dt;
+    if (ps.stuckTimer > STUCK_THRESHOLD) {
+      ps.autoReverseTimer = AUTO_REVERSE_DURATION;
+      ps.stuckTimer       = 0;
     }
-  } else if (inputs.braking) {
-    state.speed = Math.max(0, state.speed - ph.brakingDecel * dt);
   } else {
-    if (state.speed < maxSpeed) {
-      state.speed = Math.min(maxSpeed, state.speed + accelRate * dt);
-    }
-    if (state.speed < 0) {
-      state.speed = Math.min(0, state.speed + ph.brakingDecel * 0.5 * dt);
-    }
-    if (state.speed > 0) {
-      state.speed = Math.max(0, state.speed - ph.naturalDecel * dt * 0.1);
-    }
+    ps.stuckTimer = 0;
   }
+  const isAutoReversing = ps.autoReverseTimer > 0;
 
-  // Velocity calculée AVANT la rotation d'angle — garantit l'indépendance velocity/angle (E03-S01)
-  state.velocity.x = Math.sin(state.angle) * state.speed;
-  state.velocity.z = Math.cos(state.angle) * state.speed;
+  // Multiplicateur vitesse max selon terrain
+  const vmaxMult = ts.boostTimer > 0             ? 1.5
+                 : ts.rampTimer  > 0              ? 1.3
+                 : terrain?.softTerrain === 'sticky' ? 0.5
+                 : 1.0;
 
-  // S04 : v_forward = projection de velocity sur l'axe avant (convention sin/cos)
-  // Dans le modèle scalaire actuel v_forward == state.speed ; formule complète pour la suite
-  const v_forward = state.velocity.x * Math.sin(state.angle)
-                  + state.velocity.z * Math.cos(state.angle);
+  // Stats normalisées pour le pipeline de forces
+  const vs = cfg.vehicleStats;
+  const statsNorm = {
+    speed_stat: (ps.vehicleStats.speed / vs.baseSpeed) * vmaxMult,
+    grip_stat:  ps.vehicleStats.grip   / vs.baseGrip,
+    accel_stat: ps.vehicleStats.accel  / vs.baseAccel,
+  };
 
-  // S04 : rotation décorrélée — angle tourne selon |v_forward|, velocity ne change pas
-  const clampFactor = Math.min(1, Math.max(0, Math.abs(v_forward) / 5));
-  const turn_rate   = inputs.steering * ph.turnSpeed * clampFactor;
-  state.angle      += turn_rate * dt;
+  // Throttle/steering depuis inputs
+  const throttle = isAutoReversing  ? -1
+                 : inputs.reversing ? -1
+                 : inputs.braking   ? -0.8
+                 : 1;
 
-  // Détection drift temporaire basée sur turn_rate (S05 remplacera avec v_lateral)
-  const gripNorm   = grip / vs.baseGrip;
-  const driftSeuil = ph.driftThreshold / Math.max(0.5, gripNorm);
-  state.drifting   = Math.abs(turn_rate) * (Math.abs(v_forward) / Math.max(1, maxSpeed)) > driftSeuil;
+  // ---- Collision dure ----
+  if (terrain?.hardCollision && !isAutoReversing) {
+    if (terrain.pushBack) {
+      const velocityBefore = { x: state.velocity.x, z: state.velocity.z };
 
-  if (state.drifting) {
-    state.speed *= Math.pow(ph.driftFriction, dt * 60);
+      const bounced = applyBounce(
+        state.velocity, terrain.pushBack, physConsts.restitution ?? 0.5
+      );
+      state.velocity.x = bounced.x;
+      state.velocity.z = bounced.z;
+      state.speed      = Math.sqrt(bounced.x ** 2 + bounced.z ** 2);
+
+      // Correction de position
+      state.position.x += terrain.pushBack.x;
+      state.position.z += terrain.pushBack.z;
+
+      // Velocity post-rebond → déplacement pour sortir du mur
+      state.position.x += state.velocity.x * dt;
+      state.position.z += state.velocity.z * dt;
+
+      // Amortissement pour éviter les oscillations
+      state.velocity.x *= 0.92;
+      state.velocity.z *= 0.92;
+      state.speed = Math.sqrt(state.velocity.x ** 2 + state.velocity.z ** 2);
+    } else {
+      state.velocity.x = 0;
+      state.velocity.z = 0;
+      state.speed      = 0;
+    }
+    state.drifting = false;
+  } else {
+    // Pas de collision (ou auto-reverse actif)
+    if (isAutoReversing && terrain?.hardCollision && terrain.pushBack) {
+      state.position.x += terrain.pushBack.x * 2;
+      state.position.z += terrain.pushBack.z * 2;
+    }
+
+    const dec       = decompose(state.velocity, state.angle);
+    const driftInfo = detectDrift(dec, physConsts, statsNorm, surfaceGrip);
+    state.drifting  = driftInfo.is_drifting;
+
+    const newV = computeForces(
+      state, { throttle }, statsNorm, dt, physConsts, driftInfo.current_grip
+    );
+    state.velocity.x = newV.x;
+    state.velocity.z = newV.z;
+
+    const steeringEff = inputs.steering;
+    const turn_rate   = computeTurnRate(steeringEff, dec, driftInfo.is_drifting, physConsts);
+    state.angle      += turn_rate * dt;
+
+    state.position.x += state.velocity.x * dt;
+    state.position.z += state.velocity.z * dt;
+    state.speed       = driftInfo.v_speed;
   }
-
-  // Position mise à jour via velocity (plus via sin/cos directement)
-  state.position.x += state.velocity.x * dt;
-  state.position.z += state.velocity.z * dt;
-
-  if (modifiers.hardStop) {
-    state.speed      = 0;
-    state.velocity.x = 0;
-    state.velocity.z = 0;
-  }
-
-  return state;
 }
 
 // ---- Cohésion ----
@@ -287,160 +402,7 @@ function _calculerCohesion(positions, cfg) {
   return { value, isFull: value >= cfg.fullThreshold };
 }
 
-// ---- Gestion des matchs ----
-
-const matches = new Map();
-
-/**
- * Démarre un match.
- */
-export async function startMatch(matchId, players, io, roomId) {
-  const cfg      = await _chargerConfig();
-  const poolData = await _chargerBlockPool();
-
-  if (!poolData.depart)  throw new Error('Blocmap de départ introuvable');
-  if (!poolData.arrivee) throw new Error("Blocmap d'arrivée introuvable");
-  if (poolData.pool.length === 0) throw new Error('Pool de blocs vide');
-
-  const map = _genererMap(poolData, cfg);
-  const blockScale = map.blockScale;
-
-  const playerStates = new Map();
-  const socketMap    = new Map();
-  const playerInfos  = [];
-
-  players.forEach((p, i) => {
-    const decalage = (i - (players.length - 1) / 2) * 1.5;
-    const stats    = p.vehicle?.stats ?? {};
-    const playerId = p.vehicle?.id ?? `player_${i}_${Date.now()}`;
-
-    socketMap.set(p.socketId, playerId);
-
-    playerStates.set(playerId, {
-      playerId,
-      playerName:   p.playerName,
-      vehicleStats: {
-        speed: stats.speed ?? cfg.vehicleStats.baseSpeed,
-        grip:  stats.grip  ?? cfg.vehicleStats.baseGrip,
-        accel: stats.accel ?? cfg.vehicleStats.baseAccel,
-      },
-      physicsState: {
-        position: { x: map.startPosition.x, z: map.startPosition.z + decalage },
-        velocity: { x: 0, z: 0 },
-        angle:    map.startPosition.angle,
-        speed:    0,
-        drifting: false,
-      },
-      latestInputs: { steering: 0, braking: 0, reversing: 0 },
-      connected:    true,
-      terrainState: { lastTerrain: null, onRamp: false, boostTimer: 0, rampTimer: 0 },
-    });
-
-    playerInfos.push({
-      playerId,
-      socketId:   p.socketId,
-      playerName: p.playerName,
-      vehicle:    p.vehicle,
-    });
-  });
-
-  let lastTick = Date.now();
-
-  const intervalId = setInterval(() => {
-    const now = Date.now();
-    const dt  = Math.min((now - lastTick) / 1000, 0.1);
-    lastTick  = now;
-
-    for (const ps of playerStates.values()) {
-      const ts = ps.terrainState;
-
-      const terrain = _checkTerrain(ps.physicsState.position, map.blocks, blockScale);
-
-      if (terrain.softTerrain === 'boost' && ts.lastTerrain !== 'boost') ts.boostTimer = 1.5;
-      if (terrain.softTerrain === 'ramp') {
-        ts.onRamp = true;
-      } else if (ts.onRamp) {
-        ts.rampTimer = 1.0;
-        ts.onRamp    = false;
-      }
-      ts.lastTerrain  = terrain.softTerrain;
-      ts.boostTimer   = Math.max(0, ts.boostTimer - dt);
-      ts.rampTimer    = Math.max(0, ts.rampTimer  - dt);
-
-      const modifiers = {};
-      if (!terrain.hardCollision) {
-        if (terrain.softTerrain === 'sticky') {
-          modifiers.maxSpeedMultiplier = 0.5;
-        } else if (ts.boostTimer > 0) {
-          modifiers.maxSpeedMultiplier = 1.5;
-        } else if (ts.rampTimer > 0) {
-          modifiers.maxSpeedMultiplier = 1.3;
-        }
-      }
-
-      _tickPhysique(ps.physicsState, ps.vehicleStats, ps.latestInputs, dt, cfg, modifiers);
-
-      if (terrain.hardCollision) {
-        // Rebond élastique sur mur (E03-S09) — formule : velocity -= wallNormal × v_dot × (1 + restitution)
-        const px  = terrain.pushX;
-        const pz  = terrain.pushZ;
-        const len = Math.sqrt(px * px + pz * pz);
-        if (len > 0.001) {
-          const nx    = px / len;
-          const nz    = pz / len;
-          const st    = ps.physicsState;
-          const v_dot = st.velocity.x * nx + st.velocity.z * nz;
-          const res   = cfg.physics.restitution ?? 0.5;
-          if (v_dot < 0) {
-            st.velocity.x -= (1 + res) * v_dot * nx;
-            st.velocity.z -= (1 + res) * v_dot * nz;
-            st.speed       = Math.sqrt(st.velocity.x ** 2 + st.velocity.z ** 2);
-          }
-        }
-        // Correction de position pour sortir du mur
-        ps.physicsState.position.x += terrain.pushX;
-        ps.physicsState.position.z += terrain.pushZ;
-        ps.physicsState.drifting    = false;
-      }
-    }
-
-    const positions = [...playerStates.values()].map(ps => ps.physicsState.position);
-    const cohesion  = _calculerCohesion(positions, cfg.cohesion);
-
-    const playersPayload = {};
-    for (const [pid, ps] of playerStates) {
-      const vel = ps.physicsState.velocity;
-
-      // driftAngle : écart entre direction velocity et cap du véhicule (E03-S10)
-      // 0 = droit devant, ≠ 0 = dérapage latéral perceptible
-      const velocityAngle = Math.atan2(vel.x, vel.z);
-      let driftAngle = velocityAngle - ps.physicsState.angle;
-      if (driftAngle >  Math.PI) driftAngle -= 2 * Math.PI;
-      if (driftAngle < -Math.PI) driftAngle += 2 * Math.PI;
-
-      playersPayload[pid] = {
-        playerName: ps.playerName,
-        position:   { ...ps.physicsState.position },
-        velocity:   { x: vel.x, z: vel.z },
-        angle:      ps.physicsState.angle,
-        speed:      ps.physicsState.speed,
-        drifting:   ps.physicsState.drifting,
-        driftAngle,
-      };
-    }
-
-    io.to(roomId).emit('game:state', { matchId, players: playersPayload, cohesion });
-
-    // Vérification de victoire
-    MatchEnd.checkVictory(match);
-  }, TICK_MS);
-
-  const match = { id: matchId, playerStates, socketMap, map, intervalId, roomId, io, cfg };
-  matches.set(matchId, match);
-  console.log(`Match ${matchId} démarré — ${players.length} joueur(s), map ${map.gridCols}×${map.gridRows}`);
-
-  return { map, playerInfos };
-}
+// ---- Rejoin / Input / Stop / Getters ----
 
 /**
  * Ré-associe un joueur à un nouveau socketId après navigation de page.

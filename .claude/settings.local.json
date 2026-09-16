@@ -70,7 +70,11 @@
       "Bash(node --check \"/Users/christianvannier/Documents/1300/pop vroom/server/game-loop.js\")",
       "Bash(node --check \"/Users/christianvannier/Documents/1300/pop vroom/public/js/modules/network/sync.js\")",
       "Bash(node --check \"/Users/christianvannier/Documents/1300/pop vroom/public/js/modules/game/particles.js\")",
-      "Bash(node --check \"/Users/christianvannier/Documents/1300/pop vroom/public/js/modules/voxel/renderer.js\")"
+      "Bash(node --check \"/Users/christianvannier/Documents/1300/pop vroom/public/js/modules/voxel/renderer.js\")",
+      "Bash(xargs ls -la)",
+      "Bash(git stash *)",
+      "Bash(node -e \"console.log\\('stash ok'\\)\")",
+      "Bash(curl -s http://localhost:3000/test-solo-v3.html)"
     ]
   }
 }

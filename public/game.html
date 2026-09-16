@@ -105,17 +105,23 @@
       transition: width 0.3s;
     }
 
-    /* ---- HUD droit (preview) ---- */
+    /* ---- HUD droit (preview + tous les panneaux debug en flex column) ---- */
     #hud-droite {
       position: fixed;
       top: 12px;
       right: 12px;
+      bottom: 12px;
       display: flex;
       flex-direction: column;
-      align-items: flex-end;
+      align-items: stretch;
       gap: 6px;
       z-index: 10;
+      width: 230px;
+      overflow-y: auto;
+      scrollbar-width: thin;
+      pointer-events: none;
     }
+    #hud-droite > * { pointer-events: auto; }
 
     #preview-wrap {
       background: rgba(0, 0, 0, 0.6);
@@ -198,12 +204,23 @@
       border-color: rgba(255, 255, 255, 0.7);
     }
 
-    /* ---- HUD cohésion (haut centre) ---- */
-    #hud-cohesion {
+    /* ---- Stack haut-centre (cohésion + overlay debug) ---- */
+    #top-center {
       position: fixed;
       top: 12px;
       left: 50%;
       transform: translateX(-50%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+      z-index: 10;
+      pointer-events: none;
+    }
+    #top-center > * { pointer-events: auto; }
+
+    /* ---- HUD cohésion (dans top-center) ---- */
+    #hud-cohesion {
       background: rgba(0, 0, 0, 0.6);
       backdrop-filter: blur(4px);
       border-radius: 8px;
@@ -373,11 +390,11 @@
       transition: width 0.3s;
     }
 
-    /* ---- Bouton quitter ---- */
+    /* ---- Bouton quitter (haut-gauche pour libérer la colonne droite) ---- */
     #btn-quitter {
       position: fixed;
-      top: 12px;
-      right: 12px;
+      bottom: 12px;
+      left: 12px;
       z-index: 30;
       background: rgba(0, 0, 0, 0.55);
       backdrop-filter: blur(4px);
@@ -462,6 +479,220 @@
     }
 
     #btn-annuler-quitter:hover { background: rgba(255, 255, 255, 0.14); }
+
+    /* ==== DEBUG / CALIBRATION (port test-solo-v3) ==== */
+
+    /* Boutons debug dans hud-droite */
+    .btn {
+      background: #667eea;
+      color: #fff;
+      border: none;
+      padding: 8px 14px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 13px;
+      transition: background 0.15s;
+    }
+    .btn:hover  { background: #5568d3; }
+    .btn:active { background: #4455c0; }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    /* Panel debug physique (empilé dans hud-droite) */
+    #debug-phys {
+      background: rgba(0, 0, 0, 0.78);
+      backdrop-filter: blur(6px);
+      border: 1px solid rgba(68, 136, 255, 0.3);
+      border-radius: 10px;
+      padding: 10px 14px;
+      font-size: 12px;
+      line-height: 1.65;
+      display: none;
+    }
+    #debug-phys.visible { display: block; }
+
+    #debug-phys-titre {
+      font-size: 13px;
+      font-weight: 700;
+      color: #4488ff;
+      margin-bottom: 6px;
+      letter-spacing: 0.02em;
+    }
+
+    .debug-ligne { display: flex; justify-content: space-between; gap: 6px; }
+    .debug-lbl { opacity: 0.55; }
+    .debug-val { color: #a8e6cf; font-variant-numeric: tabular-nums; }
+
+    #debug-phys input[type="range"] {
+      width: 100%;
+      accent-color: #ff6b6b;
+      cursor: pointer;
+      margin-top: 2px;
+    }
+
+    /* Overlay d'équilibrage (dans top-center, sous la cohésion) */
+    #overlay-debug {
+      background: rgba(0, 0, 0, 0.82);
+      backdrop-filter: blur(6px);
+      border: 1px solid rgba(255, 220, 50, 0.35);
+      border-radius: 10px;
+      padding: 10px 18px;
+      font-size: 12px;
+      line-height: 1.7;
+      display: none;
+      white-space: nowrap;
+    }
+
+    #overlay-debug-titre {
+      font-size: 12px;
+      font-weight: 700;
+      color: #ffd166;
+      margin-bottom: 4px;
+      letter-spacing: 0.04em;
+      text-align: center;
+    }
+
+    .ov-ligne { display: flex; justify-content: space-between; gap: 20px; }
+    .ov-lbl { opacity: 0.5; }
+    .ov-val { color: #a8e6cf; font-variant-numeric: tabular-nums; font-weight: 600; }
+    .ov-val.alerte { color: #ff6b6b; }
+
+    /* Panel calibration gauche */
+    #panel-calibration {
+      position: fixed;
+      top: 0;
+      left: 0;
+      bottom: 0;
+      width: 258px;
+      background: rgba(0, 0, 0, 0.88);
+      backdrop-filter: blur(8px);
+      border-right: 1px solid rgba(255, 255, 255, 0.1);
+      padding: 52px 14px 16px;
+      overflow-y: auto;
+      z-index: 20;
+      display: none;
+      font-size: 12px;
+      scrollbar-width: thin;
+    }
+    #panel-calibration.visible { display: block; }
+
+    .cal-titre {
+      font-size: 14px;
+      font-weight: 700;
+      color: #ffd166;
+      margin-bottom: 14px;
+      letter-spacing: 0.04em;
+    }
+
+    .cal-section {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: rgba(255, 255, 255, 0.35);
+      margin: 12px 0 5px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      padding-bottom: 3px;
+    }
+
+    .cal-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1px;
+      gap: 8px;
+    }
+
+    .cal-lbl { opacity: 0.75; white-space: nowrap; }
+    .cal-val { color: #a8e6cf; font-weight: 600; min-width: 42px; text-align: right; }
+
+    #panel-calibration input[type="range"] {
+      width: 100%;
+      accent-color: #667eea;
+      cursor: pointer;
+      margin-bottom: 6px;
+    }
+
+    .cal-note {
+      font-size: 10px;
+      opacity: 0.45;
+      font-style: italic;
+      line-height: 1.45;
+      margin-top: 8px;
+    }
+
+    #profils-btn { display: flex; flex-direction: column; gap: 5px; margin-top: 6px; }
+    .profil-btn {
+      background: rgba(255, 255, 255, 0.07);
+      border: 1px solid rgba(255, 255, 255, 0.13);
+      border-radius: 6px;
+      color: #fff;
+      padding: 6px 10px;
+      font-size: 12px;
+      cursor: pointer;
+      text-align: left;
+      font-family: inherit;
+      transition: background 0.1s;
+    }
+    .profil-btn:hover { background: rgba(100, 130, 255, 0.22); }
+    .profil-btn.actif { background: rgba(100, 130, 255, 0.38); border-color: #667eea; }
+
+    /* Panel charts (empilé dans hud-droite) */
+    #panel-charts {
+      background: rgba(0, 0, 0, 0.82);
+      backdrop-filter: blur(6px);
+      border: 1px solid rgba(68, 136, 255, 0.22);
+      border-radius: 10px;
+      padding: 10px 12px;
+      display: none;
+    }
+    #panel-charts.visible { display: block; }
+    #panel-charts canvas.chart-c { width: 100%; height: auto; }
+
+    .chart-lbl {
+      font-size: 10px;
+      opacity: 0.45;
+      letter-spacing: 0.04em;
+      margin-bottom: 3px;
+    }
+    .chart-c {
+      display: block;
+      border-radius: 3px;
+      background: rgba(255, 255, 255, 0.04);
+      margin-bottom: 8px;
+    }
+
+    /* Panel résultats session */
+    #panel-session {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(10, 10, 30, 0.95);
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      border-radius: 14px;
+      padding: 22px 30px;
+      min-width: 240px;
+      display: none;
+      z-index: 25;
+      text-align: center;
+    }
+    #panel-session.visible { display: block; }
+
+    .sess-titre {
+      font-size: 15px;
+      font-weight: 700;
+      color: #ffd166;
+      margin-bottom: 12px;
+    }
+    .sess-stat {
+      display: flex;
+      justify-content: space-between;
+      gap: 20px;
+      font-size: 13px;
+      line-height: 1.9;
+    }
+    .sess-val { color: #a8e6cf; font-weight: 600; }
   </style>
 </head>
 <body>
@@ -509,20 +740,117 @@
     </div>
   </div>
 
-  <!-- HUD droit — preview 3D -->
+  <!-- HUD droit — preview 3D + boutons debug + panneaux empilés -->
   <div id="hud-droite">
-    <div id="preview-wrap">
+    <div id="preview-wrap" style="align-self:flex-end">
       <canvas id="preview" width="190" height="140"></canvas>
+    </div>
+    <button class="btn" id="btn-auto-boucle">Auto [A]</button>
+    <button class="btn" id="btn-calibration">Calibration [C]</button>
+    <button class="btn" id="btn-debug-toggle">Debug [D]</button>
+    <button class="btn" id="btn-debug-phys-toggle">Phys [P]</button>
+
+    <!-- Panel debug physique -->
+    <div id="debug-phys">
+      <div id="debug-phys-titre">Physique (lecture serveur)</div>
+      <div class="debug-ligne"><span class="debug-lbl">Velocity</span><span class="debug-val">(<span id="dbg-vx">0.00</span>, <span id="dbg-vz">0.00</span>)</span></div>
+      <div class="debug-ligne"><span class="debug-lbl">|v| m/s</span><span class="debug-val" id="dbg-speed">0.00</span></div>
+      <div class="debug-ligne"><span class="debug-lbl">v_forward</span><span class="debug-val" id="dbg-vfwd">0.00</span></div>
+      <div class="debug-ligne"><span class="debug-lbl">v_lateral</span><span class="debug-val" id="dbg-vlat">0.00</span></div>
+      <div class="debug-ligne"><span class="debug-lbl">Angle</span><span class="debug-val" id="dbg-angle">0.0°</span></div>
+      <div class="debug-ligne"><span class="debug-lbl">Élévation</span><span class="debug-val" id="dbg-elev">0.00</span></div>
+      <div class="debug-ligne"><span class="debug-lbl">Dérapage</span><span id="dbg-drift" style="font-weight:700;color:#44ff99">NON</span></div>
+      <hr class="sep" style="margin:6px 0">
+      <div style="opacity:0.7;font-size:11px;margin-bottom:2px">
+        Adhérence grip_stat : <b id="grip-val">0.50</b>
+      </div>
+      <div style="opacity:0.45;font-size:10px;margin-bottom:3px">
+        (lecture seule en multijoueur)
+      </div>
+      <input type="range" id="slider-grip" min="0.05" max="2.0" step="0.05" value="0.5" disabled>
+      <div style="margin-top:6px;font-size:10px;opacity:0.45;line-height:1.5">
+        flèche bleue = velocity · flèche orange = angle
+      </div>
+    </div>
+
+    <!-- Panel graphiques -->
+    <div id="panel-charts">
+      <div class="chart-lbl">VITESSE (m/s)</div>
+      <canvas class="chart-c" id="chart-speed" width="200" height="70"></canvas>
+      <div class="chart-lbl">V_LATERAL (dérapage)</div>
+      <canvas class="chart-c" id="chart-vlat" width="200" height="70"></canvas>
+      <div class="chart-lbl">COHÉSION</div>
+      <canvas class="chart-c" id="chart-vie" width="200" height="16"></canvas>
     </div>
   </div>
 
-  <!-- HUD cohésion (haut centre) -->
-  <div id="hud-cohesion">
-    <span id="cohesion-label">Cohésion</span>
-    <div id="cohesion-bar-wrap">
-      <div id="cohesion-bar" style="width:0%"></div>
+  <!-- Stack haut-centre : cohésion + overlay debug -->
+  <div id="top-center">
+    <!-- Overlay d'équilibrage (caché par défaut, sous la cohésion) -->
+    <div id="overlay-debug">
+    <div id="overlay-debug-titre">EQUILIBRAGE</div>
+    <div class="ov-ligne"><span class="ov-lbl">Vitesse</span><span class="ov-val" id="ov-speed">0.00 u/s</span></div>
+    <div class="ov-ligne"><span class="ov-lbl">v_lateral</span><span class="ov-val" id="ov-vlat">0.00 u/s</span></div>
+    <div class="ov-ligne"><span class="ov-lbl">Dérapage</span><span class="ov-val" id="ov-drift">NON</span></div>
+    <div class="ov-ligne"><span class="ov-lbl">Voxels</span><span class="ov-val" id="ov-voxels">– / –</span></div>
+    <div class="ov-ligne"><span class="ov-lbl">Chocs</span><span class="ov-val" id="ov-chocs">0 (Δv: –)</span></div>
+    <div class="ov-ligne"><span class="ov-lbl">FPS</span><span class="ov-val" id="ov-fps">–</span></div>
+    <div class="ov-ligne"><span class="ov-lbl">Blocs visibles</span><span class="ov-val" id="ov-blocs">–</span></div>
+    <div class="ov-ligne"><span class="ov-lbl">Position</span><span class="ov-val" id="ov-pos">(0, 0)</span></div>
+    <div class="ov-ligne"><span class="ov-lbl">Ping</span><span class="ov-val" id="ov-ping">– ms</span></div>
     </div>
-    <span id="cohesion-val">0 %</span>
+
+    <!-- HUD cohésion -->
+    <div id="hud-cohesion">
+      <span id="cohesion-label">Cohésion</span>
+      <div id="cohesion-bar-wrap">
+        <div id="cohesion-bar" style="width:0%"></div>
+      </div>
+      <span id="cohesion-val">0 %</span>
+    </div>
+  </div>
+
+  <!-- Panel calibration (gauche) -->
+  <div id="panel-calibration">
+    <div class="cal-titre">Calibration (affichage)</div>
+    <div class="cal-note">
+      En multijoueur la physique tourne sur le serveur — ces curseurs ne
+      modifient que l'affichage local et les seuils visuels.
+    </div>
+
+    <div class="cal-section">Véhicule (référence)</div>
+    <div class="cal-row"><span class="cal-lbl">Blocs initiaux</span><span class="cal-val" id="val-blocs">–</span></div>
+    <div class="cal-row"><span class="cal-lbl">Poids estimé</span><span class="cal-val" id="val-poids">– kg</span></div>
+
+    <div class="cal-section">Affichage physique</div>
+    <div class="cal-row"><span class="cal-lbl">Speed</span><span class="cal-val" id="val-speed">0.50</span></div>
+    <input type="range" id="sl-speed" min="0.1" max="1.0" step="0.05" value="0.5">
+    <div class="cal-row"><span class="cal-lbl">Grip</span><span class="cal-val" id="val-grip-cal">0.50</span></div>
+    <input type="range" id="sl-grip-cal" min="0.1" max="1.0" step="0.05" value="0.5">
+    <div class="cal-row"><span class="cal-lbl">Accel</span><span class="cal-val" id="val-accel">0.50</span></div>
+    <input type="range" id="sl-accel" min="0.1" max="1.0" step="0.05" value="0.5">
+
+    <div class="cal-section">Seuils d'affichage</div>
+    <div class="cal-row"><span class="cal-lbl">Seuil choc Δv</span><span class="cal-val" id="val-choc">3.0</span></div>
+    <input type="range" id="sl-choc" min="0.5" max="10" step="0.5" value="3.0">
+
+    <div class="cal-section">Profils</div>
+    <div id="profils-btn">
+      <button class="profil-btn" data-profil="equilibre">Équilibré &nbsp; s=0.5 g=0.5 a=0.5</button>
+      <button class="profil-btn" data-profil="drift">Drift machine &nbsp; s=0.7 g=0.2 a=0.6</button>
+      <button class="profil-btn" data-profil="tank">Tank &nbsp; s=0.3 g=0.8 a=0.3</button>
+      <button class="profil-btn" data-profil="fusee">Fusée &nbsp; s=1.0 g=0.4 a=1.0</button>
+      <button class="profil-btn" data-profil="savonnette">Savonnette &nbsp; s=0.5 g=0.1 a=0.5</button>
+    </div>
+  </div>
+
+  <!-- Panel résultats de session (arrivée locale) -->
+  <div id="panel-session">
+    <div class="sess-titre">Résultats du tour</div>
+    <div class="sess-stat"><span>Temps</span><span class="sess-val" id="sess-temps">–</span></div>
+    <div class="sess-stat"><span>Vitesse max</span><span class="sess-val" id="sess-vitmax">–</span></div>
+    <div class="sess-stat"><span>Vitesse moy.</span><span class="sess-val" id="sess-vitmoy">–</span></div>
+    <div class="sess-stat"><span>Chocs</span><span class="sess-val" id="sess-voxels">–</span></div>
   </div>
 
   <!-- Boutons de contrôle tactile -->

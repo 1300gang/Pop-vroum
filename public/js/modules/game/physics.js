@@ -34,6 +34,14 @@ export async function init() {
   await _chargerConfig();
 }
 
+/**
+ * Injecte la config sans fetch (pour usage côté serveur Node.js).
+ * @param {object} cfg — objet gameplay.json complet ou merged { ...vehicleStats, ...physics }
+ */
+export function setConfig(cfg) {
+  _config = cfg;
+}
+
 // ---- Décomposition vectorielle (E03-S02) ----
 
 /**
@@ -222,13 +230,207 @@ export function applyBounce(velocity, pushBack, restitution) {
   };
 }
 
+// ---- Seuil de dommage par choc (RACE-D01) ----
+
+/**
+ * Vérifie si un choc mur est assez violent pour endommager le véhicule.
+ * Appeler APRÈS avoir appliqué le rebond (applyBounce).
+ *
+ * @param {{ x, z }} velocityBefore  — velocity juste avant le rebond
+ * @param {{ x, z }} velocityAfter   — velocity juste après le rebond
+ * @param {{ x, z }} impactNormal    — normale normalisée, pointe du mur vers le véhicule
+ * @param {{ x, z }} [position]      — position au moment du choc (pour impactPoint)
+ * @returns {{ damaged: boolean, deltaSpeed?, impactPoint?, impactNormal? }}
+ */
+export function checkDamage(velocityBefore, velocityAfter, impactNormal, position = { x: 0, z: 0 }) {
+  const threshold   = _config?.DAMAGE_THRESHOLD ?? 8;
+  const speedBefore = Math.sqrt(velocityBefore.x ** 2 + velocityBefore.z ** 2);
+  const speedAfter  = Math.sqrt(velocityAfter.x  ** 2 + velocityAfter.z  ** 2);
+  const deltaSpeed  = speedBefore - speedAfter;
+
+  if (deltaSpeed <= threshold) return { damaged: false };
+
+  return {
+    damaged: true,
+    deltaSpeed,
+    impactPoint:  { x: position.x, y: 0.5, z: position.z },
+    impactNormal,
+  };
+}
+
 /**
  * Crée un état physique initial pour un véhicule.
  * @param {{ x, z, angle }} opts
  * @returns {{ position, angle, speed, drifting }}
  */
-export function createState({ x = 0, z = 0, angle = 0 } = {}) {
-  return { position: { x, z }, velocity: { x: 0, z: 0 }, angle, speed: 0, drifting: false };
+export function createState({ x = 0, z = 0, angle = 0, elevation = 0 } = {}) {
+  return {
+    position: { x, z }, velocity: { x: 0, z: 0 },
+    angle, speed: 0, drifting: false, elevation,
+    // V4 : état vertical réel (hauteur monde + vitesse verticale)
+    y: 0, vy: 0, airborne: false, vyTerrain: 0, hauteurSol: 0,
+  };
+}
+
+// ---- Physique verticale : sauts et changements de niveau (V4) ----
+
+// Écart en dessous duquel on considère que la voiture touche encore le sol.
+// Purement numérique (évite un décollage/atterrissage alterné à chaque frame).
+const _TOL_SOL = 0.02;
+
+/**
+ * Donne une impulsion verticale au véhicule (bosses, RACE-C05).
+ *
+ * @param {object} carState — état courant (doit avoir vy, airborne)
+ * @param {number} impulse  — vitesse verticale initiale en u/s (gameplay.json BUMP_IMPULSE)
+ */
+export function applyBump(carState, impulse, vitesse = 0, consts) {
+  if (!impulse || impulse <= 0) return;   // désactivé via config
+  if (carState.airborne) return;          // déjà en l'air, pas de double-saut
+
+  // Une bosse prise au pas doit à peine secouer, prise à fond elle doit envoyer.
+  const ref     = (consts ?? {}).BUMP_REF_SPEED ?? 12;
+  const facteur = Math.max(0.25, Math.min(2.5, vitesse / ref));
+
+  carState.vy       = impulse * facteur;
+  carState.airborne = true;
+}
+
+/**
+ * Gravité le long d'une pente, appliquée au vecteur vitesse horizontal.
+ *
+ * Sans ça, monter une rampe ne coûte rien et la descendre ne rapporte rien :
+ * la hauteur est plaquée sur un mouvement inchangé, et le saut « singe » la
+ * gravité au lieu d'en découler.
+ *
+ * @param {object} carState — muté en place
+ * @param {{ dirX, dirZ, penteElev }} rampe — géométrie renvoyée par checkTerrain
+ * @param {number} uniteElevation — unités monde par niveau d'élévation
+ * @param {number} dt
+ * @param {{ GRAVITY }} consts
+ */
+export function applySlopeGravity(carState, rampe, uniteElevation, dt, consts) {
+  if (!rampe || carState.airborne) return 0;
+
+  const pente = rampe.penteElev * uniteElevation;   // dénivelé / distance
+  if (Math.abs(pente) < 0.001) return 0;
+
+  const alpha = Math.atan(pente);
+  // Composante horizontale du poids le long de la pente, pondérée : à pleine
+  // gravité une pente de 26° freine à 7,2 u/s², plus du double de la poussée du
+  // moteur — une voiture lente ne pouvait plus monter et redescendait en arrière.
+  const cfg = consts ?? {};
+  const a = (cfg.GRAVITY ?? 18) * (cfg.SLOPE_GRAVITY_FACTOR ?? 0.35) * Math.sin(alpha) * Math.cos(alpha);
+
+  carState.velocity.x -= rampe.dirX * a * dt;
+  carState.velocity.z -= rampe.dirZ * a * dt;
+  return a;
+}
+
+/**
+ * Pénalité de réception : retomber de travers coûte de la vitesse et laisse la
+ * voiture en glissade ; retomber dans l'axe ne coûte presque rien.
+ *
+ * Le désalignement est la part de la vitesse qui est latérale au moment de
+ * toucher le sol : 0 = parfaitement dans l'axe, 1 = complètement en travers.
+ *
+ * @param {object} carState — muté en place
+ * @param {{ LAND_ALIGN_TOLERANCE, LAND_MAX_SPEED_LOSS }} consts
+ * @returns {{ desalignement: number, perte: number }}
+ */
+export function applyLandingPenalty(carState, consts) {
+  const cfg       = consts ?? {};
+  const tolerance = cfg.LAND_ALIGN_TOLERANCE ?? 0.15;
+  const perteMax  = cfg.LAND_MAX_SPEED_LOSS  ?? 0.45;
+
+  const vitesse = Math.sqrt(carState.velocity.x ** 2 + carState.velocity.z ** 2);
+  if (vitesse < 0.01) return { desalignement: 0, perte: 0 };
+
+  const { v_lateral } = decompose(carState.velocity, carState.angle);
+  const desalignement = Math.min(1, Math.abs(v_lateral) / vitesse);
+  if (desalignement <= tolerance) return { desalignement, perte: 0 };
+
+  const perte = perteMax * (desalignement - tolerance) / (1 - tolerance);
+  carState.velocity.x *= (1 - perte);
+  carState.velocity.z *= (1 - perte);
+  carState.drifting = true;   // la réception part en glissade
+
+  return { desalignement, perte };
+}
+
+/**
+ * Met à jour la hauteur du véhicule pour une frame.
+ *
+ * Au sol, la voiture épouse le relief et mémorise la vitesse verticale que
+ * celui-ci lui imprime. Quand le sol se dérobe (haut d'une rampe tremplin,
+ * bord de plateau), elle décolle avec cet élan puis retombe sous la gravité :
+ * c'est ce qui permet de changer de niveau. Sur une rampe, en revanche, on
+ * suit la pente au lieu de décoller — une rampe est un raccord, pas un saut.
+ *
+ * @param {object} carState — muté en place
+ * @param {number} solCible — hauteur du terrain sous le véhicule (unités monde)
+ * @param {number} dt       — deltaTime en secondes
+ * @param {{ GRAVITY, RAMP_LAUNCH_FACTOR, JUMP_MAX_LAUNCH_VY }} consts
+ * @param {boolean} [surRampe=false] — le véhicule est sur une cellule de rampe
+ * @returns {{ landed: boolean, launched: boolean }}
+ */
+export function tickVertical(carState, solCible, dt, consts, surRampe = false) {
+  // consts peut être null tant que /config/gameplay.json n'est pas chargé
+  const cfg      = consts ?? {};
+  const gravite  = cfg.GRAVITY ?? 18;
+  const facteur  = cfg.RAMP_LAUNCH_FACTOR ?? 1.0;
+  const vyMax    = cfg.JUMP_MAX_LAUNCH_VY ?? 12;
+
+  if (carState.airborne) {
+    carState.vy -= gravite * dt;
+    carState.y  += carState.vy * dt;
+
+    if (carState.y <= solCible) {
+      const impact       = Math.abs(carState.vy);
+      carState.y         = solCible;
+      carState.vy        = 0;
+      carState.airborne  = false;
+      carState.vyTerrain = 0;
+      carState.hauteurSol = 0;
+      return { landed: true, launched: false, impact };
+    }
+    carState.hauteurSol = carState.y - solCible;
+    return { landed: false, launched: false, impact: 0 };
+  }
+
+  // Au sol : le sol se dérobe-t-il sous la voiture ?
+  if (solCible < carState.y - _TOL_SOL && !surRampe) {
+    carState.airborne = true;
+    // On repart avec l'élan vertical accumulé pendant la montée (jamais vers le bas :
+    // une chute part de zéro, la gravité fait le reste).
+    carState.vy = Math.min(vyMax, Math.max(0, carState.vyTerrain) * facteur);
+
+    // La vitesse verticale est prise SUR l'horizontale, elle ne s'y ajoute pas :
+    // un gros saut coûte de l'élan, exactement comme sur un vrai tremplin.
+    const vH = Math.sqrt(carState.velocity.x ** 2 + carState.velocity.z ** 2);
+    if (vH > 0.01) {
+      const reste = Math.sqrt(Math.max(0, vH * vH - carState.vy * carState.vy));
+      const k = reste / vH;
+      carState.velocity.x *= k;
+      carState.velocity.z *= k;
+    }
+
+    return { landed: false, launched: carState.vy > 0, impact: 0 };
+  }
+
+  // Sinon on épouse le relief, en mémorisant la vitesse verticale qu'il imprime.
+  // Cette mémoire décroît à la vitesse de la gravité — comme le ferait un projectile —
+  // pour survivre aux quelques frames où le véhicule chevauche encore la rampe en la
+  // quittant, sans pour autant persister après une longue portion plate.
+  const vyTerrain = dt > 0 ? (solCible - carState.y) / dt : 0;
+  carState.vyTerrain = Math.max(
+    0,
+    Math.min(vyMax, vyTerrain),
+    carState.vyTerrain - gravite * dt,
+  );
+  carState.y          = solCible;
+  carState.hauteurSol = 0;
+  return { landed: false, launched: false, impact: 0 };
 }
 
 /**
@@ -253,9 +455,10 @@ export function tick(state, vehicleStats, inputs, dt, modifiers = {}) {
   const accelRate = cfg.accelRate * (accelStat / cfg.baseAccel);
   const maxReverse = -maxSpeed * 0.4; // marche arrière limitée à 40% de la vitesse max
 
+  // SOLO-03 : marche arrière activable avant l'arrêt complet
+  const reverseThreshold = cfg.REVERSE_SPEED_THRESHOLD ?? 0.1;
   if (inputs.reversing) {
-    // Marche arrière : freine d'abord, puis recule
-    if (state.speed > 0) {
+    if (state.speed > reverseThreshold) {
       state.speed = Math.max(0, state.speed - cfg.brakingDecel * dt);
     } else {
       state.speed = Math.max(maxReverse, state.speed - accelRate * 0.5 * dt);

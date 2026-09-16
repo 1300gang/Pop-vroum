@@ -1,0 +1,18 @@
+{
+  "id": "block_seed_bosses",
+  "name": "Zone de bosses",
+  "createdAt": "2026-05-12T00:00:00Z",
+  "atelier": "_seed",
+  "exits": ["N", "S"],
+  "note": "Large couloir ouvert avec bosses éparses — génère des impulsions verticales aléatoires selon la trajectoire choisie",
+  "grid": [
+    ["dur", "dur", null,   null,   null,   null,   "dur", "dur"],
+    ["dur", null,  null,   null,   null,   null,   null,  "dur"],
+    ["dur", null,  "bump", null,   null,   "bump", null,  "dur"],
+    ["dur", null,  null,   null,   null,   null,   null,  "dur"],
+    ["dur", null,  null,   "bump", "bump", null,   null,  "dur"],
+    ["dur", null,  "bump", null,   null,   "bump", null,  "dur"],
+    ["dur", null,  null,   null,   null,   null,   null,  "dur"],
+    ["dur", "dur", null,   null,   null,   null,   "dur", "dur"]
+  ]
+}

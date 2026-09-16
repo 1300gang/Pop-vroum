@@ -18,9 +18,10 @@
 import * as THREE from '../../lib/three.module.js';
 
 // Durées de vie par type
-const LIFETIME_VOXEL = 3.0;   // burst de voxel : longue durée
-const LIFETIME_DUST  = 1.5;   // poussière drift : courte
-const LIFETIME_SPARK = 0.8;   // étincelles mur : très courte
+const LIFETIME_VOXEL   = 3.0;   // burst de voxel : longue durée
+const LIFETIME_DUST    = 1.5;   // poussière drift : courte
+const LIFETIME_SPARK   = 0.8;   // étincelles mur : très courte
+const LIFETIME_LANDING = 1.2;   // poussière d'atterrissage bosse (RACE-C05)
 
 const GRAVITY       = -9.8;
 const MAX_PARTICLES = 300;
@@ -100,6 +101,22 @@ export function emitSparks(position, wallNormal, count = 6) {
     p.vz = wallNormal.z * s + (Math.random() - 0.5) * 2.5;
     p.vy = 1.0 + Math.random() * 3.5;
     p.mesh.scale.setScalar(0.3 + Math.random() * 0.4);
+  });
+}
+
+/**
+ * Poussière d'atterrissage après saut sur bosse (RACE-C05).
+ * @param {{ x, y, z }} position — position du véhicule à l'atterrissage
+ * @param {number} [count=8]
+ */
+export function emitLanding(position, count = 8) {
+  _spawn(position, '#c8b89a', count, LIFETIME_LANDING, (p) => {
+    const angle = Math.random() * Math.PI * 2;
+    const speed = 1.0 + Math.random() * 2.5;
+    p.vx = Math.cos(angle) * speed;
+    p.vz = Math.sin(angle) * speed;
+    p.vy = 0.8 + Math.random() * 1.5;
+    p.mesh.scale.setScalar(0.3 + Math.random() * 0.5);
   });
 }
 

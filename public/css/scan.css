@@ -744,6 +744,21 @@ body {
   color: #fff;
 }
 
+#btn-retoucher {
+  flex: 0 0 auto;
+  background: transparent;
+  border: 1px solid #667eea;
+  color: #667eea;
+  font-size: 0.9rem;
+  padding: 0.65rem 1rem;
+  transition: background 0.15s, color 0.15s;
+}
+
+#btn-retoucher:hover {
+  background: #667eea;
+  color: #fff;
+}
+
 #btn-valider {
   flex: 1;
   background: var(--couleur-accent);

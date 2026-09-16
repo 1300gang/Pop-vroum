@@ -1,0 +1,632 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Pop Vroum — Testeur de Map 2D</title>
+  <link rel="stylesheet" href="/css/shared.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --font-outfit: 'Outfit', sans-serif;
+      --color-dark-bg: #0b0b16;
+      --color-sidebar-bg: rgba(26, 26, 46, 0.7);
+      --color-card-bg: rgba(35, 35, 64, 0.5);
+      --color-border: rgba(245, 166, 35, 0.2);
+      --color-border-hover: rgba(245, 166, 35, 0.6);
+      --shadow-neon: 0 0 15px rgba(245, 166, 35, 0.25);
+      --shadow-neon-green: 0 0 15px rgba(46, 204, 113, 0.25);
+      --shadow-neon-red: 0 0 15px rgba(231, 76, 60, 0.25);
+    }
+
+    body {
+      font-family: var(--font-outfit), sans-serif;
+      background-color: var(--color-dark-bg);
+      background-image: 
+        radial-gradient(at 10% 20%, rgba(26, 21, 44, 0.6) 0px, transparent 50%),
+        radial-gradient(at 90% 80%, rgba(15, 32, 67, 0.6) 0px, transparent 50%);
+      height: 100vh;
+      overflow: hidden;
+      display: flex;
+      flex-direction: row;
+      margin: 0;
+      padding: 0;
+    }
+
+    /* Panneau de configuration (Sidebar) */
+    aside {
+      width: 380px;
+      min-width: 380px;
+      background-color: var(--color-sidebar-bg);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-right: 1px solid var(--color-border);
+      padding: 1.5rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1.25rem;
+      height: 100%;
+      overflow-y: auto;
+      z-index: 10;
+      box-shadow: 5px 0 25px rgba(0, 0, 0, 0.5);
+    }
+
+    /* En-tête */
+    header {
+      border-bottom: 1px solid var(--color-border);
+      padding-bottom: 1rem;
+    }
+
+    header h1 {
+      font-size: 1.5rem;
+      font-weight: 800;
+      color: #fff;
+      margin-bottom: 0.25rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    header h1 span {
+      color: var(--couleur-accent);
+      text-shadow: 0 0 8px rgba(245, 166, 35, 0.5);
+    }
+
+    header p {
+      font-size: 0.8rem;
+      color: #8a8ab0;
+    }
+
+    /* Groupe de contrôles */
+    .section-title {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--couleur-accent);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      margin-bottom: 0.5rem;
+      border-left: 2px solid var(--couleur-accent);
+      padding-left: 0.5rem;
+    }
+
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+    }
+
+    .form-row {
+      display: flex;
+      gap: 0.5rem;
+    }
+
+    label {
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: #b0b0d0;
+    }
+
+    input[type="text"], input[type="number"], select {
+      background: rgba(10, 10, 20, 0.6);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 6px;
+      color: #fff;
+      padding: 0.6rem 0.8rem;
+      font-family: var(--font-outfit);
+      font-size: 0.9rem;
+      transition: all 0.2s ease;
+      width: 100%;
+    }
+
+    input[type="text"]:focus, input[type="number"]:focus, select:focus {
+      outline: none;
+      border-color: var(--couleur-accent);
+      box-shadow: 0 0 8px rgba(245, 166, 35, 0.2);
+    }
+
+    /* Boutons premium */
+    .btn {
+      background: var(--couleur-accent);
+      color: #000;
+      border: none;
+      border-radius: 6px;
+      padding: 0.6rem 1rem;
+      font-family: var(--font-outfit);
+      font-weight: 700;
+      font-size: 0.9rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      transition: all 0.2s ease;
+    }
+
+    .btn:hover {
+      opacity: 0.95;
+      transform: translateY(-1px);
+      box-shadow: var(--shadow-neon);
+    }
+
+    .btn-secondary {
+      background: rgba(255, 255, 255, 0.08);
+      color: #e0e0e0;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+    }
+
+    .btn-secondary:hover {
+      background: rgba(255, 255, 255, 0.15);
+      border-color: rgba(255, 255, 255, 0.3);
+      box-shadow: none;
+      color: #fff;
+    }
+
+    .btn-full {
+      width: 100%;
+      padding: 0.8rem;
+      font-size: 1rem;
+    }
+
+    /* Switch / Checkbox modern */
+    .toggle-group {
+      display: flex;
+      flex-direction: column;
+      gap: 0.6rem;
+      background: var(--color-card-bg);
+      padding: 0.8rem;
+      border-radius: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .checkbox-container {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      cursor: pointer;
+      font-size: 0.85rem;
+      color: #d0d0f0;
+      user-select: none;
+    }
+
+    .checkbox-container input {
+      display: none;
+    }
+
+    .checkmark {
+      width: 18px;
+      height: 18px;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 4px;
+      display: inline-block;
+      position: relative;
+      transition: all 0.2s ease;
+      background: rgba(0, 0, 0, 0.3);
+    }
+
+    .checkbox-container:hover .checkmark {
+      border-color: var(--couleur-accent);
+    }
+
+    .checkbox-container input:checked + .checkmark {
+      background: var(--couleur-accent);
+      border-color: var(--couleur-accent);
+    }
+
+    .checkbox-container input:checked + .checkmark::after {
+      content: '';
+      position: absolute;
+      left: 5px;
+      top: 2px;
+      width: 5px;
+      height: 9px;
+      border: solid #000;
+      border-width: 0 2px 2px 0;
+      transform: rotate(45deg);
+    }
+
+    /* Panneau de statistiques */
+    .status-panel {
+      padding: 1rem;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.6rem;
+      transition: all 0.3s ease;
+      border: 1px solid transparent;
+    }
+
+    .status-valid {
+      background: rgba(46, 204, 113, 0.1);
+      border-color: rgba(46, 204, 113, 0.2);
+      color: var(--couleur-vert);
+    }
+
+    .status-invalid {
+      background: rgba(231, 76, 60, 0.1);
+      border-color: rgba(231, 76, 60, 0.2);
+      color: var(--couleur-rouge);
+    }
+
+    .status-badge {
+      font-weight: 700;
+      text-transform: uppercase;
+      font-size: 0.95rem;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+
+    .stat-row {
+      display: flex;
+      justify-content: space-between;
+      color: #a0a0c0;
+      border-bottom: 1px dashed rgba(255, 255, 255, 0.05);
+      padding-bottom: 0.25rem;
+    }
+
+    .stat-row strong {
+      color: #fff;
+    }
+
+    .unreachable-list {
+      color: var(--couleur-rouge);
+      font-size: 0.75rem;
+      margin-top: 0.25rem;
+      max-height: 80px;
+      overflow-y: auto;
+    }
+
+    /* Pool de blocs */
+    .pool-list {
+      background: var(--color-card-bg);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      border-radius: 8px;
+      max-height: 180px;
+      overflow-y: auto;
+      padding: 0.5rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+    }
+
+    .pool-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.4rem;
+      border-radius: 4px;
+      background: rgba(255,255,255,0.02);
+      font-size: 0.75rem;
+      transition: background 0.2s ease;
+    }
+
+    .pool-item:hover {
+      background: rgba(255,255,255,0.06);
+    }
+
+    .pool-item-label {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      color: #e0e0e0;
+      font-weight: 500;
+      cursor: pointer;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      flex-grow: 1;
+    }
+
+    .pool-badge {
+      font-size: 0.65rem;
+      padding: 0.1rem 0.3rem;
+      border-radius: 3px;
+      font-weight: 700;
+      background: rgba(245, 166, 35, 0.15);
+      color: var(--couleur-accent);
+    }
+
+    .pool-badge-exits {
+      background: rgba(52, 152, 219, 0.15);
+      color: var(--couleur-bleu);
+      margin-left: 0.25rem;
+    }
+
+    /* Guide rapide */
+    .quick-guide {
+      font-size: 0.75rem;
+      color: #8888aa;
+      background: rgba(0, 0, 0, 0.2);
+      padding: 0.8rem;
+      border-radius: 8px;
+      border-left: 3px solid rgba(255, 255, 255, 0.1);
+      display: flex;
+      flex-direction: column;
+      gap: 0.3rem;
+      margin-top: auto;
+    }
+
+    .quick-guide strong {
+      color: #ccc;
+    }
+
+    /* Zone de canvas (Rendu principal) */
+    main {
+      flex-grow: 1;
+      height: 100%;
+      position: relative;
+      background: #04040a;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      cursor: grab;
+      image-rendering: auto;
+    }
+
+    canvas:active {
+      cursor: grabbing;
+    }
+
+    /* Indicateur de chargement / état */
+    .toast {
+      position: absolute;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%) translateY(100px);
+      background: rgba(11, 11, 22, 0.95);
+      border: 1px solid var(--couleur-accent);
+      box-shadow: var(--shadow-neon);
+      padding: 0.75rem 1.5rem;
+      border-radius: 30px;
+      color: #fff;
+      font-size: 0.9rem;
+      font-weight: 600;
+      z-index: 100;
+      transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+      pointer-events: none;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .toast.visible {
+      transform: translateX(-50%) translateY(0);
+    }
+
+    /* Infobulle au survol d'un bloc */
+    .block-tooltip {
+      position: absolute;
+      pointer-events: none;
+      z-index: 50;
+      background: rgba(11, 11, 22, 0.95);
+      border: 1px solid var(--color-border-hover);
+      box-shadow: var(--shadow-neon);
+      padding: 0.5rem 0.75rem;
+      border-radius: 8px;
+      color: #fff;
+      font-size: 0.8rem;
+      font-weight: 600;
+      line-height: 1.4;
+      opacity: 0;
+      transform: translateY(4px);
+      transition: opacity 0.12s ease, transform 0.12s ease;
+      white-space: nowrap;
+    }
+
+    .block-tooltip.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    .block-tooltip .tooltip-name {
+      color: var(--couleur-accent);
+      font-weight: 700;
+    }
+
+    .block-tooltip .tooltip-meta {
+      font-size: 0.72rem;
+      font-weight: 400;
+      color: #a0a0c0;
+    }
+
+    /* Outils flottants en bas-droit du canvas */
+    .floating-tools {
+      position: absolute;
+      bottom: 20px;
+      right: 20px;
+      display: flex;
+      gap: 0.5rem;
+      z-index: 20;
+    }
+
+    .tool-btn {
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      background: rgba(20, 20, 35, 0.85);
+      border: 1px solid var(--color-border);
+      color: #fff;
+      font-size: 1.25rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.4);
+      transition: all 0.2s ease;
+      backdrop-filter: blur(5px);
+    }
+
+    .tool-btn:hover {
+      background: var(--couleur-accent);
+      color: #000;
+      border-color: var(--couleur-accent);
+      box-shadow: var(--shadow-neon);
+      transform: scale(1.05);
+    }
+
+    /* Scrollbar esthétique */
+    aside::-webkit-scrollbar {
+      width: 6px;
+    }
+    aside::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    aside::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 3px;
+    }
+    aside::-webkit-scrollbar-thumb:hover {
+      background: var(--color-border-hover);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Panneau de configuration (Sidebar) -->
+  <aside>
+    <header>
+      <h1>🗺 <span>Pop Vroum</span></h1>
+      <p>Testeur de Génération de Map 2D</p>
+    </header>
+
+    <!-- Section 1 : Paramètres -->
+    <section class="form-group">
+      <h2 class="section-title">Génération</h2>
+      
+      <div class="form-group">
+        <label for="inp-seed">Seed (Graine)</label>
+        <div class="form-row">
+          <input id="inp-seed" type="text" placeholder="ex. 12345678" maxlength="15">
+          <button id="btn-rand-seed" class="btn btn-secondary" title="Seed Aléatoire">🎲</button>
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group" style="flex: 1;">
+          <label for="sel-size">Taille Grille</label>
+          <select id="sel-size">
+            <option value="2">2 × 2</option>
+            <option value="3">3 × 3</option>
+            <option value="4" selected>4 × 4</option>
+            <option value="5">5 × 5</option>
+            <option value="6">6 × 6</option>
+            <option value="8">8 × 8</option>
+            <option value="10">10 × 10</option>
+          </select>
+        </div>
+        <div class="form-group" style="flex: 1;">
+          <label for="sel-mode">Mode</label>
+          <select id="sel-mode">
+            <option value="graph" selected>Graphe (Procgen)</option>
+            <option value="legacy">Legacy (Aléatoire)</option>
+          </select>
+        </div>
+      </div>
+
+      <button id="btn-generate" class="btn btn-full" style="margin-top: 0.5rem;">⚙ Régénérer</button>
+    </section>
+
+    <!-- Section 2 : Options d'affichage -->
+    <section class="form-group">
+      <h2 class="section-title">Affichage</h2>
+      <div class="toggle-group">
+        <label class="checkbox-container">
+          <input id="chk-cells" type="checkbox" checked>
+          <span class="checkmark"></span>
+          Détails des cellules (Grille 8x8)
+        </label>
+        <label class="checkbox-container">
+          <input id="chk-exits" type="checkbox" checked>
+          <span class="checkmark"></span>
+          Indicateurs d'exits (Sorties)
+        </label>
+        <label class="checkbox-container">
+          <input id="chk-connections" type="checkbox" checked>
+          <span class="checkmark"></span>
+          Lignes de connexité BFS
+        </label>
+        <label class="checkbox-container">
+          <input id="chk-unreachable" type="checkbox" checked>
+          <span class="checkmark"></span>
+          Surligner les blocs isolés (Invalides)
+        </label>
+      </div>
+    </section>
+
+    <!-- Section 3 : Pool de Blocs -->
+    <section class="form-group">
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <h2 class="section-title" style="margin-bottom:0;">Pool de Blocs</h2>
+        <div style="font-size: 0.7rem; display: flex; gap: 0.4rem;">
+          <a href="#" id="lnk-all" style="color:var(--couleur-accent); text-decoration:none;">Tous</a>
+          <span style="color:#444;">|</span>
+          <a href="#" id="lnk-none" style="color:#888; text-decoration:none;">Aucun</a>
+        </div>
+      </div>
+      <div id="pool-container" class="pool-list">
+        <!-- Rempli dynamiquement en JS -->
+        <div style="font-size:0.75rem; color:#888; text-align:center; padding:1rem;">Chargement du pool...</div>
+      </div>
+    </section>
+
+    <!-- Section 4 : Statistiques -->
+    <section class="form-group">
+      <h2 class="section-title">Statistiques & Validation</h2>
+      <div id="status-card" class="status-panel status-valid">
+        <div class="status-badge" id="status-text">✓ Map Valide</div>
+        <div class="stat-row">ID Map <strong id="stat-map-id">-</strong></div>
+        <div class="stat-row">Seed utilisée <strong id="stat-seed">-</strong></div>
+        <div class="stat-row">Accessibilité <strong id="stat-reachable">-</strong></div>
+        <div id="unreachable-container" style="display: none;">
+          <div style="font-weight:600; font-size:0.75rem; margin-top:0.4rem; color:var(--couleur-rouge);">Blocs isolés :</div>
+          <div id="unreachable-list" class="unreachable-list"></div>
+        </div>
+      </div>
+    </section>
+
+    <button id="btn-copy-json" class="btn btn-secondary btn-full">📋 Copier le JSON MapData</button>
+
+    <!-- Guide rapide -->
+    <div class="quick-guide">
+      <div><strong>Souris / Tactile :</strong></div>
+      <div>• <strong>Glisser :</strong> Déplacer la carte (Pan)</div>
+      <div>• <strong>Molette :</strong> Zoomer / Dézoomer</div>
+      <div>• <strong>Survol :</strong> Nom du bloc et rotation</div>
+      <div>• <strong>Clic sur un bloc :</strong> Faire pivoter de 90° CW</div>
+      <div>• <strong>Double clic :</strong> Réinitialiser la vue</div>
+    </div>
+  </aside>
+
+  <!-- Zone de canvas (Rendu principal) -->
+  <main>
+    <canvas id="map-canvas"></canvas>
+
+    <!-- Infobulle bloc survolé -->
+    <div id="block-tooltip" class="block-tooltip" aria-hidden="true"></div>
+    
+    <!-- Toast notifications -->
+    <div id="toast" class="toast">📋 Copié dans le presse-papier !</div>
+
+    <!-- Outils flottants -->
+    <div class="floating-tools">
+      <button id="btn-zoom-in" class="tool-btn" title="Zoom +">+</button>
+      <button id="btn-zoom-out" class="tool-btn" title="Zoom -">-</button>
+      <button id="btn-zoom-reset" class="tool-btn" title="Réinitialiser la vue">⟲</button>
+    </div>
+  </main>
+
+  <!-- Scripts -->
+  <script type="module" src="/js/pages/test-map-page.js"></script>
+</body>
+</html>

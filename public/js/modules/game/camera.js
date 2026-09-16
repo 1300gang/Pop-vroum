@@ -5,6 +5,12 @@ import * as THREE from '../../lib/three.module.js';
 
 const LERP_POS   = 0.08;
 const LERP_ZOOM  = 0.05;
+// Suivi vertical volontairement plus lent que le suivi horizontal : la voiture
+// s'échappe vers le haut du cadre au décollage, et la caméra la rattrape. C'est
+// ce décalage qui fait lire le saut — une caméra collée à la voiture l'aplatit.
+const LERP_HAUTEUR = 0.035;
+// Recul supplémentaire (zoom arrière) par unité de hauteur, pour voir la réception
+const ZOOM_AIR     = 1.1;
 const PADDING    = 8;
 const ZOOM_MIN   = 12;
 const ZOOM_MAX   = 80;
@@ -25,6 +31,9 @@ let _targetHalfW = ZOOM_MIN;
 let _currentHalfW = ZOOM_MIN; // suivi séparé pour éviter la divergence avec _camera.right
 let _currentPos  = new THREE.Vector3();
 let _targetPos   = new THREE.Vector3();
+
+// Coup de zoom ponctuel (boost, collant) — s'estompe tout seul
+let _kick = 0;
 
 // État du shake
 let _shakeIntensity = 0;
@@ -61,10 +70,11 @@ export function update(positions) {
   if (!_camera || positions.length === 0) return;
 
   // ---- Barycentre ----
-  let cx = 0, cz = 0;
-  for (const p of positions) { cx += p.x; cz += p.z; }
+  let cx = 0, cz = 0, cy = 0;
+  for (const p of positions) { cx += p.x; cz += p.z; cy += (p.y ?? 0); }
   cx /= positions.length;
   cz /= positions.length;
+  cy /= positions.length;
 
   // ---- Zoom adaptatif (bounding box) ----
   let minX = Infinity, maxX = -Infinity;
@@ -78,8 +88,11 @@ export function update(positions) {
 
   const extentX = (maxX - minX) / 2 + PADDING;
   const extentZ = (maxZ - minZ) / 2 + PADDING;
-  const targetHW = Math.max(extentX, extentZ / _aspect, ZOOM_MIN);
-  _targetHalfW = Math.min(targetHW, ZOOM_MAX);
+  _kick *= 0.92;   // retour au cadrage normal en ~0.5 s
+  if (Math.abs(_kick) < 0.02) _kick = 0;
+
+  const targetHW = Math.max(extentX, extentZ / _aspect, ZOOM_MIN) + Math.max(0, cy) * ZOOM_AIR + _kick;
+  _targetHalfW = Math.max(ZOOM_MIN * 0.6, Math.min(targetHW, ZOOM_MAX));
 
   // Lerp zoom : utilise _currentHalfW (pas _camera.right qui vaut hw×aspect)
   // pour éviter la divergence sur les écrans non-carrés
@@ -89,11 +102,13 @@ export function update(positions) {
   // ---- Position cible (lerp doux) ----
   _targetPos.x = _lerp(_targetPos.x, cx, LERP_POS);
   _targetPos.z = _lerp(_targetPos.z, cz, LERP_POS);
+  _targetPos.y = _lerp(_targetPos.y, cy, LERP_HAUTEUR);
 
   // ---- Calcul position caméra isométrique ----
   // La distance varie avec le zoom pour garder la même "échelle" visuelle
   const dist = ISO_DISTANCE * (hw / ZOOM_MIN);
   const offset = _calcOffset(_targetPos.x, _targetPos.z, dist);
+  offset.y += _targetPos.y;
 
   _currentPos.x = _lerp(_currentPos.x, offset.x, LERP_POS);
   _currentPos.y = _lerp(_currentPos.y, offset.y, LERP_POS);
@@ -106,7 +121,7 @@ export function update(positions) {
   _camera.bottom = -hw;
 
   _camera.position.copy(_currentPos);
-  _camera.lookAt(_targetPos.x + LOOK_AHEAD, 0, _targetPos.z);
+  _camera.lookAt(_targetPos.x + LOOK_AHEAD, _targetPos.y, _targetPos.z);
 
   // ---- Screen shake : offset 2D aléatoire sur position caméra ----
   if (_shakeIntensity > 0.005) {
@@ -162,6 +177,14 @@ function _calcOffset(tx, tz, dist) {
  * Appelé par game/impact lors d'une collision.
  * @param {number} magnitude — intensité brute (ex. vitesse de collision)
  */
+/**
+ * Coup de zoom ponctuel : négatif = la vue se resserre (boost),
+ * positif = elle s'élargit (ralentissement).
+ */
+export function kick(amount) {
+  _kick = amount;
+}
+
 export function shake(magnitude) {
   const clamped = Math.min(magnitude, SHAKE_MAX);
   // On prend le max pour ne pas couper un shake déjà en cours

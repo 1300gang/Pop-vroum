@@ -1,0 +1,17 @@
+{
+  "id": "block_seed_chicane",
+  "name": "Chicane",
+  "createdAt": "2026-05-11T00:00:00Z",
+  "atelier": "_seed",
+  "exits": ["N", "S"],
+  "grid": [
+    ["dur", "dur", "dur", null, null, "dur", "dur", "dur"],
+    ["dur", "dur", "dur", null, null, "dur", "dur", "dur"],
+    ["dur", "dur", "dur", null, null, null, "dur", "dur"],
+    ["dur", "dur", "dur", "dur", null, null, "dur", "dur"],
+    ["dur", "dur", "dur", "dur", null, null, "dur", "dur"],
+    ["dur", "dur", "dur", null, null, "dur", "dur", "dur"],
+    ["dur", "dur", "dur", null, null, "dur", "dur", "dur"],
+    ["dur", "dur", "dur", null, null, "dur", "dur", "dur"]
+  ]
+}

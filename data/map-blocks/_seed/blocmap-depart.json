@@ -4,15 +4,16 @@
   "createdAt": "2026-05-06T00:00:00Z",
   "atelier": "_seed",
   "special": "depart",
-  "note": "Grille en format Z-direction. Après rotation 90° CW : bords haut/bas = dur, bord gauche = dur, bord droit = ouvert (rz=2..5), boost central pour lancer les véhicules.",
+  "exits": ["N", "S", "E", "O"],
+  "note": "Plat entièrement ouvert — zone de spawn sans obstacle",
   "grid": [
     [null, null, null, null, null, null, null, null],
-    [null, null,  null,  null,  null,  null,  null,  null],
-    [null, null,  null,  null,  null,  null,  null,  null],
-    [null, null,  "boost", "boost", null,  null,  null,  null],
-    [null, null,  "boost", "boost", null,  null,  null,  null],
-    [null, null,  null,  null,  null,  null,  null,  null],
-    [null, null,  null,  null,  null,  null,  null,  null],
+    [null, null, null, null, null, null, null, null],
+    [null, null, null, null, null, null, null, null],
+    [null, null, null, null, null, null, null, null],
+    [null, null, null, null, null, null, null, null],
+    [null, null, null, null, null, null, null, null],
+    [null, null, null, null, null, null, null, null],
     [null, null, null, null, null, null, null, null]
   ]
 }

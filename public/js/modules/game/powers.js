@@ -137,7 +137,14 @@ export function createForVehicle(ownerId, powerValues) {
 
   // ---- Orange — Bouclier (demi-sphère devant le véhicule) ----
   if (powerValues.shield > 0) {
-    const shieldSize = 1.0 + powerValues.shield * 0.4;
+    // Dôme en unités monde, hors échelle du véhicule : non plafonné il atteignait
+    // 7 u de rayon pour une voiture de 2,24 u, et les objets semblaient percutés
+    // à distance.
+    const cfgDome    = _config?.shield ?? {};
+    const shieldSize = Math.min(
+      cfgDome.domeMax ?? 1.6,
+      (cfgDome.domeMin ?? 0.9) + powerValues.shield * (cfgDome.domeParPoint ?? 0.05),
+    );
     const geo = new THREE.SphereGeometry(shieldSize, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2);
     const mat = new THREE.MeshBasicMaterial({
       color: 0xff8800, transparent: true, opacity: 0.3,
@@ -220,8 +227,11 @@ export function update(allVehicles, dt) {
     const angle     = owner.angle;
 
     // ---- Le pivot colle au véhicule : Three.js s'occupe du reste ----
-    vp.pivot.position.set(x, 0, z);
-    vp.pivot.rotation.y = angle;
+    // Même convention que _vehicleGroup.rotation.y = -angle (Three.js horaire)
+    // Hauteur du véhicule : sans elle, dôme et faisceaux restaient au sol pendant les sauts
+    vp.pivot.position.set(x, owner.y ?? 0, z);
+    // +π/2 : aligne l'axe +Z du pivot avec l'avant du véhicule (forward = cos/sin → +X monde)
+    vp.pivot.rotation.y = Math.PI / 2 - angle;
 
     // ---- Flèche de navigation : position + rotation vers l'arrivée + clignotement ----
     if (vp.arrowGroup) {

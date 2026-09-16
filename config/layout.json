@@ -1,4 +1,5 @@
 {
+  "PLATEAU_HEIGHT": 0.5,
   "_commentaire": [
     "Coordonnées calculées depuis feuille-vehicule-A3.svg (viewBox 420×297mm, 1 unité = 1mm).",
     "QR codes 35×35mm : TL(4,4) TR(381,4) BL(4,258) BR(381,258).",

@@ -1,0 +1,18 @@
+{
+  "id": "block_seed_cubes_mobiles",
+  "name": "Cubes mobiles",
+  "createdAt": "2026-05-12T00:00:00Z",
+  "atelier": "_seed",
+  "exits": ["N", "S"],
+  "note": "Chicane avec cubes déplaçables en quinconce — les cubes se poussent latéralement à l'impact",
+  "grid": [
+    ["dur", "dur", null,     null, null, null,     "dur", "dur"],
+    ["dur", null,  null,     null, null, null,     null,  "dur"],
+    ["dur", null,  null,     null, "movable", null, null, "dur"],
+    ["dur", null,  null,     null, null, null,     null,  "dur"],
+    ["dur", null,  null,"movable", null, null,     null,  "dur"],
+    ["dur", null,  null,     null, null, null,     null,  "dur"],
+    ["dur", null,  null,     null, null, null,     null,  "dur"],
+    ["dur", "dur", null,     null, null, null,     "dur", "dur"]
+  ]
+}

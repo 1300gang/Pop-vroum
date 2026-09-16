@@ -1,17 +1,13 @@
 // Détection de fin de partie (victoire) côté serveur.
 //
-// Un joueur "arrive" quand sa position X dépasse finishX - ARRIVE_MARGIN.
+// SOLO-05 : un joueur « arrive » quand sa distance au centre du bloc arrivée
+//           est inférieure à WIN_RADIUS (défaut 4.0).
 // La victoire se déclenche quand tous les joueurs connectés sont arrivés.
 // Un seul événement game:victory est émis par match.
 //
 // API publique :
-//   checkVictory(match)  → boolean  (true si la victoire vient d'être déclarée)
-//   resetMatch(matchId)  → void     (à appeler à stopMatch)
-
-// Marge en unités monde avant le bord droit pour déclencher "arrivé".
-// blockScale=2, BLOCK_SIZE=8 → dernière colonne arrivée = 16 unités.
-// On déclenche dès que le joueur entre dans le blocmap d'arrivée.
-const ARRIVE_MARGIN = 14;
+//   checkVictory(match)  → boolean
+//   resetMatch(matchId)  → void
 
 // matchId → Set<playerId> des joueurs déjà arrivés
 const _arrived  = new Map();
@@ -21,27 +17,31 @@ const _declared = new Set();
 /**
  * À appeler à chaque tick pour vérifier si la victoire est atteinte.
  *
- * @param {{ id, playerStates, map, io, roomId }} match
+ * @param {{ id, playerStates, map, io, roomId, cfg }} match
  * @returns {boolean} true si la victoire vient d'être déclarée ce tick
  */
 export function checkVictory(match) {
-  const { id: matchId, playerStates, map, io, roomId } = match;
+  const { id: matchId, playerStates, map, io, roomId, cfg } = match;
 
-  // Déjà déclarée → ne rien faire
   if (_declared.has(matchId)) return false;
 
   if (!_arrived.has(matchId)) _arrived.set(matchId, new Set());
   const arrived = _arrived.get(matchId);
 
-  const finishX = map.finishPosition.x - ARRIVE_MARGIN;
+  // SOLO-05 : position d'arrivée = centre du bloc exit (coin W-1,H-1)
+  const exitPos   = map.exit?.worldCenter ?? map.finishPosition;
+  const winRadius = cfg?.solo?.WIN_RADIUS ?? 4.0;
 
-  // Marquer les joueurs arrivés
   for (const [pid, ps] of playerStates) {
-    if (!arrived.has(pid) && ps.physicsState.position.x >= finishX) {
-      arrived.add(pid);
-      console.log(`[match-end] Joueur ${pid} arrivé (x=${ps.physicsState.position.x.toFixed(1)}, match ${matchId})`);
+    if (arrived.has(pid)) continue;
 
-      // Notifier le groupe : ce joueur est arrivé
+    const pos  = ps.physicsState.position;
+    const dist = Math.hypot(pos.x - exitPos.x, pos.z - exitPos.z);
+
+    if (dist < winRadius) {
+      arrived.add(pid);
+      console.log(`[match-end] Joueur ${pid} arrivé (dist=${dist.toFixed(1)}, match ${matchId})`);
+
       io.to(roomId).emit('game:player-arrived', {
         matchId,
         playerId: pid,
@@ -50,17 +50,15 @@ export function checkVictory(match) {
     }
   }
 
-  // Vérifier si tous les joueurs connectés sont arrivés
+  // Tous les joueurs connectés sont-ils arrivés ?
   const connectes = [...playerStates.values()].filter(ps => ps.connected);
   if (connectes.length === 0) return false;
 
   const tousArrivés = connectes.every(ps => arrived.has(ps.playerId));
   if (!tousArrivés) return false;
 
-  // Victoire !
   _declared.add(matchId);
 
-  // Podium = ordre d'arrivée (Set conserve l'ordre d'insertion)
   const podium = [...arrived].map((pid, i) => {
     const ps = playerStates.get(pid);
     return {

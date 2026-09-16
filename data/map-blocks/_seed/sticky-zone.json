@@ -11,7 +11,7 @@
     [null,  null,"sticky","sticky","sticky","sticky",null, null],
     [null,  null,"sticky","sticky","sticky","sticky",null, null],
     [null,  null,"sticky","sticky","sticky","sticky",null, null],
-    ["dur", null,  null,  null,  null,  null,  null,  "dur"],
-    ["dur", "dur", "dur", "dur", "dur", "dur", "dur", "dur"]
+    [null, null,  null,  null,  null,  null,  null,  null],
+    [null, null, null, null, null, null, null, null]
   ]
 }

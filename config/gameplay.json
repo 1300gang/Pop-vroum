@@ -23,7 +23,10 @@
     },
     "shield": {
       "magnitudePerOrangeVoxel": 0.4,
-      "absorption": 0.7
+      "absorption": 0.7,
+      "domeMin": 0.9,
+      "domeMax": 1.6,
+      "domeParPoint": 0.05
     },
     "arrow": {
       "blinkIntervalBase": 5.0,
@@ -45,6 +48,7 @@
     }
   },
   "physics": {
+    "DAMAGE_THRESHOLD": 4,
     "turnRate": 2.2,
     "driftThreshold": 1.6,
     "driftFriction": 0.72,
@@ -62,9 +66,31 @@
     "driftThresholdFactor":1.2,
     "minDriftSpeed":       3.0,
     "driftRotationBoost":  0.8,
+    "BUMP_IMPULSE":        5.0,
+    "GRAVITY":             18.0,
+    "SLOPE_GRAVITY_FACTOR": 0.35,
+    "RAMP_LAUNCH_FACTOR":  1.0,
+    "JUMP_MAX_LAUNCH_VY":  12.0,
+    "LAND_ALIGN_TOLERANCE": 0.15,
+    "LAND_MAX_SPEED_LOSS":  0.45,
+    "PITCH_FACTOR":         0.12,
+    "BUMP_REF_SPEED":       12.0,
+    "AIR_CONTROL_MIN_HEIGHT": 0.25,
+    "LANDING_SHAKE":        0.25,
+    "BOOST_ACCEL":          14.0,
+    "STICKY_DRAG":          1.6,
+    "BOOST_ZOOM":           3.0,
+    "STICKY_ZOOM":          2.5,
+    "CUBE_PUSH":            0.55,
+    "CUBE_FRICTION":        3.2,
+    "CUBE_CHAIN_TRANSFER":  0.85,
+    "CUBE_PUSH_CONTINU":    4.0,
+    "POLE_BREAK_THRESHOLD": 5.0,
+    "REVERSE_SPEED_THRESHOLD": 0.1,
     "restitution":         0.5,
     "accelGripTransfer":   0.15,
-    "brakeGripTransfer":   0.20
+    "brakeGripTransfer":   0.20,
+    "RENDER_DISTANCE":     3
   },
   "surfaceGrip": {
     "dur":    1.0,
@@ -81,6 +107,10 @@
     "gridCols": 8,
     "gridRows": 8,
     "blockScale": 2
+  },
+  "solo": {
+    "WIN_RADIUS": 4.0,
+    "SPAWN_SPREAD": 1.5
   },
   "match": {
     "playerCount": [2, 3, 4, 5],

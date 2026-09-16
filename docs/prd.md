@@ -2,278 +2,198 @@
 
 **Projet** : Pop Vroum
 **Porteur** : 1k3vrtical / Collectif Mille Trois Cents
-**Version** : 0.2 (V1 spec — révisée)
-**Date** : 28 avril 2026
-**Méthodologie** : BMAD-METHOD — Phase 2 PRD
-**Document amont** : `brainstorming-session.md`
+**Version** : 1.0 — document consolidé, fait foi
+**Date** : 16 septembre 2026
+**Remplace** : `prd-race.md`, `prd-solo-v3.md`, `prd-v4.md`, `prd-v1.1-stories.md`, `prd_physique_vehicule.md`, `scan-v2-sandwich.md`, `phase-6-revisee.md` (conservés pour l'historique, plus maintenus)
 
-**Changelog v0.2** :
-- Bloc map repensé : grille 2D plate avec symboles type tiled map (au lieu de voxel 4×4×8)
-- Feuille bloc séparée (et non verso de la feuille véhicule), 1 par groupe
-- Détection automatique des 4 roues (croisement vue de profil + vue de dessus)
-- Contrôles tactiles type PAKO/Mobil Frit, auto-avance
-- Game feel juicy explicité (dérapages, particules, screen shake)
-- Caméra orthographique + indicateurs hors-écran pour coéquipier·ères
-- Référence projets antérieurs corrigée : AR-claude-atelier, Scale
+> Ce document est né d'une session d'alignement (60 questions + 10 questions de précision) menée le 16 septembre 2026. Il tranche les contradictions accumulées entre les PRD successifs et décrit **l'état réel du projet**, pas l'état espéré.
 
 ---
 
-## 1. Vision produit
+## 1. Vision
 
-### Vision en une phrase
+### Pitch (inchangé)
 
-> Un dispositif d'atelier où un groupe de 5 personnes maximum colorient chacun·e leur véhicule sur une feuille technique, le scannent pour le faire exister en 3D, puis traversent ensemble une map en restant groupé·es — chaque couleur produisant à la fois une caractéristique individuelle et un pouvoir partagé qui n'a de sens qu'avec et pour les autres.
+> Pop Vroum est un atelier-jeu où 5 participant·es colorient chacun·e leur véhicule sur une feuille de dessin, selon un langage de couleurs. Le dessin est scanné, reconstruit en véhicule voxel 3D, et les véhicules traversent ensemble une map procédurale en restant groupé·es : chaque couleur donne à la fois une caractéristique individuelle et un pouvoir partagé qui n'a de sens qu'avec et pour les autres.
 
-### Énoncé long
+### Ce qui n'a pas bougé
 
-Pop Vroum est un dispositif phygital pédagogique du Collectif Mille Trois Cents, qui prolonge la pratique d'atelier participatif via une mécanique de jeu coopérative. Le dispositif articule trois moments : un acte créatif individuel (coloriage du véhicule sur 3 vues), un passage technique partagé (scan, reconstruction 3D, validation), et une traversée coopérative (jeu vidéo où la cohésion du groupe est la mécanique centrale). Il s'inscrit dans une temporalité longue via un pool de blocs map qui s'enrichit à chaque atelier, faisant du jeu une mémoire collective traversable.
+- **Coopératif, jamais compétitif.** Personne ne gagne seul·e. La victoire se déclenche quand *tous* les joueurs connectés sont arrivés.
+- **Le papier d'abord.** Le geste manuel de coloriage reste l'acte de création. Le numérique le prolonge.
+- **Dispositif d'atelier, pas jeu de studio.** Robustesse en conditions non contrôlées > polish de gameplay.
+- **Cumulativité.** Le pool de blocs map s'enrichit à chaque atelier.
 
----
+### Ce qui a été recadré le 16/09/2026
 
-## 2. Objectifs stratégiques
-
-**Objectif 1 — Tangibilité.** Conserver la primauté du geste manuel comme acte de création. Le numérique prolonge le papier.
-
-**Objectif 2 — Coopération.** Faire de la cohésion du groupe la mécanique centrale. Personne ne gagne seul·e ; personne ne peut être abandonné·e sans conséquence.
-
-**Objectif 3 — Reproductibilité.** Le dispositif doit tourner avec un·e seul·e animateur·trice formé·e, sans le créateur. Cela impose robustesse du scan, clarté des règles, résistance aux conditions matérielles imparfaites.
-
-**Objectif 4 — Cumulativité.** Chaque atelier laisse une trace (blocs map créés, véhicules en galerie). Le projet a du sens à l'échelle d'un programme pluri-annuel.
-
-**Objectif 5 — Vulgarisation par le défaut.** Les imperfections (lecture couleur, daltonisme, débordements) deviennent des occasions de discussion, pas des bugs à masquer.
+- **Le jeu de voiture est la fondation.** « Si cette partie n'est pas juste, alors le reste tombe à l'eau. » Un test de bout en bout a montré que la conduite n'était pas au niveau — c'est ce qui a motivé les 3 vagues de travail physique/map/obstacles.
+- **Pas de pédagogie du dessin technique.** « Je ne dois pas me substituer à un cours de dessin technique, je dois rester fun pour raconter des histoires et des jeux. » → la feuille v2 « sandwich » remplace la v1 orthogonale.
+- **Pas de classement individuel visible.** Le podium apparu dans le code n'était pas une décision produit.
 
 ---
 
-## 3. Personas
+## 2. Séquençage
 
-### Persona 1 — Le ou la participant·e d'atelier
+L'ordre est ferme. Chaque phase débloque la suivante.
 
-10 ans à adulte, aucune compétence technique. Vient pour faire. Besoins : comprendre vite quoi dessiner, voir le résultat, jouer rapidement, se reconnaître dans son véhicule. Frustrations à éviter : attentes longues, lectures couleur incompréhensibles, sentiment d'inutilité dans le groupe.
-
-### Persona 2 — L'animateur·trice d'atelier
-
-Membre du Collectif ou intervenant·e formé·e. Maîtrise tablette de base, pas développeur·euse. Besoins : lancement simple, relance rapide d'une partie, visibilité sur la cohésion et les pouvoirs activés pour animer le debrief, ajout manuel d'un bloc map au pool. Frustrations à éviter : débugger un scan en séance, perdre des véhicules en fin de session.
-
-### Persona 3 — Le développeur·euse (toi)
-
-Maîtrise HTML/CSS/JS, MindAR, Three.js, OpenCV.js. Sessions de code AI itératives. Besoins : architecture modulaire, mode debug visuel, JSON comme format pivot, stories atomiques.
-
----
-
-## 4. User Journey — Atelier type
-
-**Durée totale** : ~1h-1h15 · **Effectif** : 5 max
-
-**Matériel** : 5 feuilles A3 véhicule, 1 feuille A3+ bloc collectif, feutres calibrés (6 couleurs), 1 tablette/téléphone par poste de scan, 1 écran/projecteur pour le jeu collectif.
-
-**Phase 1 — Présentation (10 min)** : règles, démo, langage couleurs/symboles.
-
-**Phase 2 — Premier dessin véhicule (10-15 min)** : chacun·e colorie son véhicule sur les 3 vues.
-
-**Phase 3 — Scan + validation (5 min par participant·e)** : pipeline visible, validation collective de chaque véhicule reconstruit.
-
-**Phase 4 — Lobby + première partie (10 min)** : 5 véhicules en jeu, map tirée au sort, traversée coopérative.
-
-**Phase 5 — Debrief + redessin libre (15-20 min)** : discussion, ajustements possibles des véhicules.
-
-**Phase 6 — Deuxième partie (10 min)** : avec véhicules ajustés.
-
-**Phase 7 — Création collective de bloc (15 min)** : le groupe se rassemble autour d'**une seule feuille bloc** (A3 minimum, posée à plat sur la table). Grille 2D vue de dessus, dessin de symboles à plusieurs feutres, discussion stratégique. Visualisation live du bloc en 3D sur écran annexe. Le bloc final est ajouté au pool **manuellement par le développeur** après l'atelier.
+| # | Phase | État | Contenu |
+|---|-------|------|---------|
+| 1 | Scan & reconstruction | **Acquis** | Feuille v2 sandwich, pipeline complet, retouche |
+| 2 | Génération de map | **Acquis** | Blocs seed + assemblage graphe + BFS |
+| 3 | **Conduite & game feel** | **En cours — priorité absolue** | Calibrage du noyau physique, diagnostic « trop mécanique » |
+| 4 | Module coopératif | À venir | Cohésion (dont rayon bloqué par les murs), puis refonte des pouvoirs |
+| 5 | Premier atelier réel | À venir | Cible de la V1 |
+| 6 | V1.x | Reporté | Pouvoirs finalisés, punchers, vents, bordures verre |
+| 7 | Direction artistique | Plus tard | Identité visuelle, une fois la base fonctionnelle solide |
 
 ---
 
-## 5. Spécifications fonctionnelles
+## 3. Périmètre V1 — premier atelier réel
 
-**Légende** : P0 critique · P1 important · P2 souhaitable
+Aucune date fixée. Projet personnel sans deadline. Piste de financement DRAC en pause mais pas abandonnée.
 
-### Module A — Feuille véhicule à colorier
+### Dans le périmètre
 
-| ID | Fonctionnalité | Description | Priorité |
-|----|----------------|-------------|----------|
-| A01 | Mise en page A3 paysage | 3 grilles selon standard dessin technique : face en bas-gauche, profil à droite, dessus au-dessus de la face. Schéma explicatif de la projection en haut-gauche. | P0 |
-| A02 | Grille voxel 4×4×8 | Face = 4×4, profil = 8×4, dessus = 8×4. Cases ≥ 1.5 cm. | P0 |
-| A03 | 4 QR codes de calage | Aux 4 coins. Stylisés graphiquement, cohérents avec AR-claude-atelier et Scale. | P0 |
-| A04 | Patch de référence couleur | Zone imprimée avec les 6 couleurs cibles, pour calibrer la lecture HSL. Discrète, en bas. | P0 |
-| A05 | Légende des couleurs | Rappel rapide de l'effet de chaque couleur. | P1 |
+| Domaine | Contenu |
+|---------|---------|
+| Scan | Feuille v2 sandwich uniquement. Calibration par patch. Retouche `scan-edit.html` en filet de sécurité. |
+| Véhicule | Reconstruction voxel 4×4×8, roues auto, stats RVB, aperçu 3D, galerie localStorage. |
+| Map | Génération procédurale depuis le pool, 1 bloc départ + 1 bloc arrivée, taille selon effectif, tirage neuf à chaque partie. |
+| Conduite | Physique vectorielle, drift émergent sans bouton dédié, rebond mur, rampes/plateaux, perte de voxels à l'impact. |
+| Coopératif | Jauge de cohésion. Victoire collective. Flèches hors-écran. Mini-map. |
+| Blocs | Éditeur web utilisé par l'**animateur·trice**. Export JSON, intégration manuelle par le dev. |
+| Réseau | Wi-Fi local uniquement. Lobby 5 joueurs max, pseudo sans compte. |
 
-### Module A bis — Feuille bloc collectif
+### Hors périmètre → V1.x
 
-| ID | Fonctionnalité | Description | Priorité |
-|----|----------------|-------------|----------|
-| AB01 | Feuille bloc séparée | Format A3 minimum, une seule par groupe, posée à plat au centre de la table. | P0 |
-| AB02 | Grille 2D plate (top-down) | Une grille vue de dessus, format tiled map. Proposition 8×8. Cases ≥ 3 cm. | P0 |
-| AB03 | 4 QR codes de calage | Esthétique cohérente avec feuille véhicule. | P0 |
-| AB04 | Légende imprimée des 4 symboles | Sur la feuille : illustration de rampe, collant, dur, accélération avec leur effet. | P0 |
-| AB05 | Zone de signature/nom de groupe | Pour identifier l'atelier d'origine. | P1 |
+- Les 6 pouvoirs couleur (dont les 4 déjà partiellement codés) — à reprendre entièrement en phase 4/6
+- Punchers et vents (obstacles actifs)
+- Bordures de map en verre
+- Rayon de cohésion bloqué par les murs
+- Bouclier dégressif
+- Son, export GLB, mode replay, interface d'admin du pool
 
-### Module B — Pipeline de scan
+### Hors périmètre définitif
 
-| ID | Fonctionnalité | Description | Priorité |
-|----|----------------|-------------|----------|
-| B01 | Capture caméra | Web mobile-first. Pas de stockage, traitement live. | P0 |
-| B02 | Détection des 4 QR codes | OpenCV.js ou jsQR. Erreur visuelle si < 4 détectés. | P0 |
-| B03 | Redressement de perspective | Homographie via les 4 QR. | P0 |
-| B04 | Segmentation des grilles | Véhicule : 3 zones. Bloc : 1 zone. Coordonnées en dur d'après mise en page. | P0 |
-| B05 | Lecture par case | Couleur HSL médiane (centre de la case, ignore bords). Pour blocs : template matching de symbole. | P0 |
-| B06 | Calibration via patch | Lecture du patch A04 et alignement de la grille HSL en début de scan. | P0 |
-| B07 | Classification HSL en 6 couleurs | Tolérance large autour de chaque teinte. | P0 |
-| B08 | Ajustement manuel HUE/SAT | Slider exposé en mode debug. Vulgarisation daltonisme assumée. | P1 |
-| B09 | Mode debug visuel complet | Affiche photo brute, QR détectés, image redressée, grilles segmentées, vue case par case. | P0 |
-| B10 | Validation par l'utilisateur | Aperçu 3D + grille lue, boutons "Valider" ou "Re-scanner". | P0 |
-| B11 | Détection du type de feuille | Reconnaît automatiquement véhicule vs bloc. | P1 |
-
-### Module C — Reconstruction voxel (véhicule)
-
-| ID | Fonctionnalité | Description | Priorité |
-|----|----------------|-------------|----------|
-| C01 | Union 2-sur-3 | Voxel instancié si ≥ 2 vues le valident. | P0 |
-| C02 | Attribution couleur du voxel | Couleur majoritaire entre vues validantes. Égalité → vue de face prioritaire. | P0 |
-| C03 | Détection automatique des 4 roues | **Vue de profil** : positions avant-arrière (premières/dernières cases coloriées de la rangée du bas, ou aux extrémités si rangée vide). **Vue de dessus** : écartement gauche-droite (cases extrêmes en largeur sur les bords avant et arrière). 4 roues placées sous les coins du châssis. Roues stylisées toujours visibles, latéralement saillantes. | P0 |
-| C04 | Sortie JSON véhicule | `{ id, playerName, grid, wheelPositions, stats, powers }`. Sérialisable. | P0 |
-| C05 | Pas de nettoyage en V1 | Voxels flottants ou formes bizarres conservés. | P0 |
-| C06 | Calcul des stats RVB | Comptage voxels par couleur primaire → vitesse (rouge), adhérence (vert), accélération (bleu). | P0 |
-| C07 | Calcul des pouvoirs HSL | Comptage voxels par couleur secondaire → bouclier (orange), attraction (violet), soin (rose). | P0 |
-
-### Module C bis — Reconstruction bloc map
-
-| ID | Fonctionnalité | Description | Priorité |
-|----|----------------|-------------|----------|
-| CB01 | Lecture symboles tiled 2D | Pour chaque case 8×8 : identification d'un des 4 symboles ou aucun. | P0 |
-| CB02 | Génération de l'élément 3D | Chaque symbole se traduit en mesh pré-modélisé placé sur la case. | P0 |
-| CB03 | Sortie JSON bloc | `{ id, name, createdAt, atelier, grid }`. Stocké en JSON local serveur. | P0 |
-| CB04 | Visualisation live | Scan continu pendant le dessin, rendu 3D mis à jour en temps réel sur écran annexe. | P1 |
-
-### Module D — Affichage 3D et galerie
-
-| ID | Fonctionnalité | Description | Priorité |
-|----|----------------|-------------|----------|
-| D01 | Rendu Three.js du véhicule | Voxels cubes texturés, 4 roues stylisées. Vue rotative libre. | P0 |
-| D02 | Écran de validation | Véhicule en rotation libre + récap stats/pouvoirs. | P0 |
-| D03 | Galerie des véhicules | Page accessible depuis l'accueil, vignettes des véhicules localStorage. | P1 |
-| D04 | Sauvegarde locale auto | JSON par véhicule en localStorage. | P1 |
-| D05 | Export GLB | Export pour usage externe (impression 3D). | P2 |
-| D06 | Suppression dans la galerie | Libère le localStorage. | P2 |
-
-### Module E — Jeu coopératif
-
-| ID | Fonctionnalité | Description | Priorité |
-|----|----------------|-------------|----------|
-| E01 | Lobby multijoueur 5 max | Connection Socket.io, lobby fermé après lancement. | P0 |
-| E02 | Tirage au sort de la map | Blocs tirés du pool, contraintes de jouabilité (chemin existant). | P0 |
-| E03 | Auto-avance + pilotage tactile | Auto-avance à la vitesse du véhicule. Bord droit = tourner droite, bord gauche = tourner gauche, centre bas = freiner/reculer. Équivalents clavier : flèches ou A/D/S. | P0 |
-| E04 | Adaptation difficulté selon effectif | Moins de joueur·euses → moins d'obstacles ou map raccourcie. | P1 |
-| E05 | Affichage 5 véhicules synchronisé | Position, rotation, état répliqués via Socket.io. | P0 |
-| E06 | Caméra orthographique top-down | Vue de dessus ortho ou très légèrement isométrique. Zoom adaptatif selon dispersion. | P0 |
-| E07 | Indicateurs hors-écran | Flèche colorée (couleur dominante du véhicule) sur le bord de l'écran pour coéquipier·ères hors champ. | P0 |
-| E08 | Jauge de cohésion | Indicateur global, bonus actif si les 5 sont dans un rayon défini. | P0 |
-| E09 | Pouvoir Rouge — aspiration | Triangle arrière, taille proportionnelle au rouge. Boost vitesse pour véhicules dans le triangle. | P0 |
-| E10 | Pouvoir Vert — phares stabilisants | Faisceau avant. Adhérence augmentée pour véhicules éclairés. | P0 |
-| E11 | Pouvoir Bleu — sillage | Trace bleue persistante au sol. Boost accélération pour véhicules qui passent dessus. Durée 5-10 sec. | P0 |
-| E12 | Pouvoir Orange — bouclier avant | Bouclier devant, taille proportionnelle. Protège véhicules adjacents des chocs frontaux. | P0 |
-| E13 | Pouvoir Violet — attraction | Champ d'attraction qui aide à maintenir la cohésion. | P1 |
-| E14 | Pouvoir Rose — bulle de soin | Aura régulière qui réinstancie progressivement les voxels perdus des véhicules adjacents. | P1 |
-| E15 | Perte de voxels par impact | Raycasting depuis le point d'impact, retrait des voxels exposés, mise à jour stats/pouvoirs. | P0 |
-| E16 | Voxels au sol après chute | Voxels perdus tombent au sol et restent visibles. | P1 |
-| E17 | Conditions de fin de partie | Victoire : tous arrivés. Défaite : un véhicule entièrement détruit. | P0 |
-| E18 | Écran de fin avec photo des véhicules | Captures finales côte-à-côte pour le debrief. | P1 |
-
-### Module E bis — Game feel juicy
-
-| ID | Fonctionnalité | Description | Priorité |
-|----|----------------|-------------|----------|
-| EJ01 | Dérapage visible | Skid marks au sol en virage serré. Intensité = vitesse × (1 - adhérence). | P0 |
-| EJ02 | Particules d'impact | Petits cubes colorés s'envolent à chaque voxel détaché, avec gravité. | P0 |
-| EJ03 | Screen shake | Léger tremblement caméra sur impact significatif. | P1 |
-| EJ04 | Feedback d'activation pouvoirs | Flash + son court à chaque activation HSL. | P1 |
-| EJ05 | Son moteur dynamique | Hauteur sonore corrélée à la vitesse. | P2 |
-| EJ06 | Trace visuelle de la cohésion | Lien lumineux discret entre véhicules quand jauge pleine. | P1 |
-
-### Module F — Map et blocs procéduraux
-
-| ID | Fonctionnalité | Description | Priorité |
-|----|----------------|-------------|----------|
-| F01 | Pool de blocs JSON local | Stockage fichiers JSON locaux serveur. | P0 |
-| F02 | 4 symboles de bloc | Vocabulaire fermé : rampe, collant, dur, accélération. | P0 |
-| F03 | Tirage au sort par session | Aléatoire avec contraintes de jouabilité. | P0 |
-| F04 | Création de bloc par le groupe | Phase 7, scan, visualisation live. | P1 |
-| F05 | Ajout manuel au pool (V1) | Développeur ajoute le bloc au JSON après l'atelier. | P1 |
-| F06 | Visualisation live du bloc | Mode debug visuel pendant le scan collectif. | P1 |
-
-### Module G — Audio et feedback (V2)
-
-| ID | Fonctionnalité | Description | Priorité |
-|----|----------------|-------------|----------|
-| G01 | SFX moteur, impact, pouvoirs | Sons spatialisés type PAKO. | P2 |
-| G02 | Musique d'ambiance | Boucle courte phase de course. | P2 |
-| G03 | Audio mini-player | Pour les transitions, inspiré Poliade. | P2 |
+PvP, scores/classements visibles, comptes utilisateur, app native, hébergement distant, langues autres que le français.
 
 ---
 
-## 6. Critères d'acceptation transversaux
+## 4. Décisions structurantes
 
-**CA-01 Robustesse du scan** : ≥ 90% de cases lues correctement en éclairage 300 lux+, distance 25-60 cm, feutres calibrés.
-
-**CA-02 Temps de réponse** : scan complet < 5 sec · latence multijoueur < 200 ms à 5 joueur·euses sur réseau local · lancement dispositif < 30 sec.
-
-**CA-03 Lisibilité du jeu** : à 5 joueur·euses, identification de chaque véhicule (couleur dominante + flèche off-screen), jauge de cohésion en permanence visible, pouvoirs actifs lisibles sans menu.
-
-**CA-04 Persistance** : véhicules localStorage persistants entre sessions navigateur, galerie ≥ 50 véhicules sans ralentissement, export GLB ouvrable dans Blender.
-
-**CA-05 Game feel** : pilotage tactile ressenti comme juicy (dérapages, particules, retour visuel), auto-avance non frustrante, vue ortho lisible même en groupe dispersé (zoom adaptatif).
-
----
-
-## 7. Contraintes techniques
-
-**C1 Stack** : HTML5/CSS3/JS vanilla, Three.js, OpenCV.js ou jsQR, MindAR.js si pertinent. Backend Node.js + Express + Socket.io. Stockage JSON local. Pas de DB, pas de cloud.
-
-**C2 Mobile-first** : scan paysage tablette/téléphone. Jeu sur tablette, écran principal pour projection.
-
-**C3 Sans compte** : pseudo lobby + localStorage.
-
-**C4 Accessibilité couleur** : slider HUE/SAT facile d'accès, calibration patch systématique.
-
-**C5 Modération éditoriale humaine** : développeur seul·e décideur·euse de l'ajout d'un bloc en V1.
+| Sujet | Décision | Origine |
+|---|---|---|
+| Classement d'arrivée | Calculé et conservé côté serveur pour un futur écran animateur·trice. **Jamais affiché aux joueurs.** | Q1 |
+| Feuille de scan | **v2 sandwich = officielle.** v1 orthogonale gelée : code conservé et accessible, plus maintenue. Un seul pipeline à faire évoluer. | Q7-9, R3 |
+| Retouche scan | Filet de sécurité discret, pas un moment pédagogique mis en scène. Le dessin reste l'acte de création. | Q10 |
+| Daltonisme | **En attente.** Le porteur est lui-même daltonien et veut des retours croisés (daltoniens / non-daltoniens) avant toute décision sur le slider ou la palette. Ne rien changer d'ici là. | Q11, R4 |
+| Sorties du labyrinthe | **Statu quo** : 1 départ, 1 arrivée, chemin garanti par BFS. L'idée de sorties multiples reste ouverte, non planifiée. | R2 |
+| Pool de blocs | Export JSON depuis l'éditeur, intégration manuelle par le dev. Pas de publication directe par les participant·es. Test live possible avant publication. | Q13, Q31 |
+| Validateur de bloc | Avertit, ne bloque jamais. Le dev relit et corrige. | Q18 |
+| Drift | Émergent, sans bouton dédié. **Le moins de boutons possible est un principe, pas une contrainte technique.** | Q20 |
+| Obstacles & pouvoirs | Doivent être à **double tranchant** : un bénéfice individuel qui coûte à la cohésion du groupe. Principe directeur de la refonte des 6 pouvoirs. | Q21, R9 |
+| Sillage vs surface | Quand une trace de sillage recouvre une case `sticky`/`boost`, **le sol l'emporte**. | Q27 |
+| Véhicule vs véhicule | Pas de collision entre véhicules en V1. | Q28 |
+| Bots | Outil de dev uniquement. Jamais en atelier. | Q29 |
+| Élévations | Richesse visuelle, pas un système tactique à approfondir pour l'instant. | Q32 |
+| Matériel d'atelier | Composer avec ce que les gens ont sous la main. Pas de kit calibré imposé. | Q39 |
+| Outils dev / app atelier | **Frontière stricte.** Le jeu doit rester avec le moins d'UI possible. Les bancs d'essai sont conservés. | Q43, Q48 |
+| Méthode de travail | Itérations larges et exploratoires, plus de découpage en stories atomiques. Signaler les incohérences sans attendre qu'on le demande. | Q57-58 |
 
 ---
 
-## 8. Périmètre V1
+## 5. Chantier en cours — conduite & game feel
 
-**Inclus** : tous P0 + P1 retenus (A05, AB05, B08, B11, D03, D04, E04, E13, E14, E16, E18, EJ03, EJ04, EJ06, F04, F05, F06, CB04).
+**Format : une seule session longue** (décision R10), pas de découpage en étapes.
 
-**Reporté V1.x/V2** : tous P2, module G complet, interface admin pool, mode replay, persistance serveur, import/export entre devices.
+### Le problème à résoudre
 
-**Hors périmètre** : PvP, personnalisation hors-grille, scores/classement, comptes, app native, autres langues que français.
+Le modèle physique est vectoriel et complet (velocity indépendante de l'angle, drift émergent, transfert de poids, rebond élastique). Mais le ressenti reste **« trop mécanique »** face à la référence PAKO : *« leur véhicule a un game feel moins mécanique et emprunte des routes plus naturelles. Je ne sais pas si c'est dû au vecteur qui s'adapte ou autre chose. »*
 
----
+Le diagnostic de cet écart fait partie du chantier, avant tout ajout de contenu.
 
-## 9. Risques
+### Contenu du chantier
 
-**R1 Scan instable** : *probabilité élevée, impact critique*. Mitigation : phase 0 maquette + phase 1 scan seul en priorité absolue, debug visuel obligatoire, calibration patch.
+1. **Outil d'édition de véhicule de test** — poser directement les voxels et leurs couleurs pour générer un véhicule de test, sans passer par le scan. Objectif : éprouver la physique sur des véhicules variés (léger/lourd, long/court, rapide/adhérent). Complète `voxel/random-vehicule.js` qui ne fait que de l'aléatoire. *Décision R5 : à faire maintenant, en ouverture du chantier.*
+2. **Diagnostic du ressenti mécanique** — identifier ce qui rend la conduite raide : courbes d'accélération, réponse du virage, lag caméra, absence d'inertie visuelle, rebond trop sec.
+3. **Calibrage du noyau** via `test-solo-v3.html` : vitesse, grip, seuil de drift, seuil de casse.
+4. **Seuil de dommage** — à raffiner une fois les runs propres, pas avant.
 
-**R2 Équilibrage gameplay long** : *probabilité élevée, impact moyen*. Mitigation : valeurs externalisées en JSON, playtests réguliers.
+### Hors de ce chantier
 
-**R3 Temps de dessin qui dérape** : *moyenne / moyen*. Mitigation : timer visible, animation à itérer vite.
-
-**R4 Cohésion à 5 complexe** : *moyenne / élevé*. Mitigation : tests par paliers 2 → 3 → 5.
-
-**R5 Feuille bloc difficile à scanner à plusieurs** : *moyenne / moyen*. Mitigation : feuille A3+ , scan asynchrone (après que le groupe a fini).
-
-**R6 Détection des roues incohérente** : *moyenne / faible*. Mitigation : algorithme avec fallbacks, visualisation des roues dans l'écran de validation.
+Bordures en verre (R6), rayon de cohésion mural (R7), bouclier dégressif (R8), punchers, vents.
 
 ---
 
-## 10. Métriques de succès V1
+## 6. Vocabulaire de jeu
 
-**M1** Scan ≥ 90% sans plus d'une re-tentative · **M2** Atelier complet ≤ 1h15 · **M3** Lors du debrief, les participant·es citent leurs *rôles dans le groupe* (pas seulement leurs perfs individuelles) · **M4** Pool ≥ 5 blocs après 5 ateliers · **M5** ≥ 1 session menée par un·e animateur·trice autre que le créateur, succès complet.
+### Couleurs → stats et pouvoirs
+
+| Couleur | Stat individuelle | Pouvoir partagé | État du pouvoir |
+|---------|-------------------|-----------------|-----------------|
+| Rouge | Vitesse | Aspiration (triangle arrière) | Codé |
+| Vert | Adhérence | Phares stabilisants (+ flèche vers l'arrivée) | Codé |
+| Bleu | Accélération | Sillage (trace au sol) | Codé |
+| Orange | — | Bouclier frontal | Codé, avec absorption dégressive |
+| Violet | — | Attraction (champ de cohésion) | **Calculé mais non implémenté** |
+| Rose | — | Soin (régénération de voxels) | **Calculé mais non implémenté** |
+
+Les 6 pouvoirs sont à reprendre en phase 4/6 sous le principe du double tranchant (§4). Le mélange actuel « pouvoir vert + flèche de navigation » sera démêlé à ce moment-là (Q26).
+
+### Types de cellule de map
+
+`null` (sol) · `dur` (plateau, h=0.6) · `sticky` (grip ×1.8) · `boost` (grip ×0.6 + accélération) · `ramp` / `ramp_n|s|e|o` (pente) · `rampe_bosse`, `bump` (saut) · `movable` (cube poussable) · `pole` (poteau cassable)
+
+### Feuilles
+
+| Feuille | Format | Rôle |
+|---------|--------|------|
+| Véhicule v2 « sandwich » | A4/A3 paysage, 4 grilles 4×8 | **Officielle** — 4 tranches horizontales empilées |
+| Véhicule v1 | A3 paysage, 3 vues orthogonales | Gelée, conservée |
+| Bloc map | A3, grille 8×8 | Support papier de discussion collective, recopié ensuite dans l'éditeur web |
 
 ---
 
-## 11. Prochaines étapes BMAD
+## 7. Incohérences relevées à traiter
 
-→ **Phase 3 — Architecture document** (en cours)
-→ **Phase 4 — Stories** : découpage atomique pour sessions code AI.
+Relevées le 16/09/2026 en comparant docs et code. Aucune n'est corrigée à ce stade.
+
+| # | Constat | Impact |
+|---|---------|--------|
+| 1 | `game:end` et `game:event` sont écoutés côté client mais **jamais émis** par le serveur. | Code mort ou fonctionnalité manquante (écran de fin). |
+| 2 | `admin-routes.js` implémente la route HTTP `POST /admin/blocks` (option A), alors que la décision est l'export JSON manuel (option B). | Route active non voulue. À retirer ou assumer. |
+| 3 | `server/cohesion.js`, `game/cohesion.js`, `game/impact.js` sont des **fichiers d'une ligne** (stubs vides). La cohésion réelle vit dans `game-loop.js`, l'impact dans `voxel/impact.js`. | Fichiers fantômes qui trompent la lecture. |
+| 4 | `DAMAGE_THRESHOLD` est codé en dur à `8.0` dans `game-page.js` alors que `gameplay.json` déclare `4`. | Viole la règle « ne jamais hardcoder ». Le calibrage ne prend pas. |
+| 5 | Le bouclier **est déjà dégressif** (`absorbDamage`, `shield.hp`), contrairement à ce qui était supposé. | La décision R8 (« intention future ») est à revoir : c'est déjà là. |
+| 6 | `scan-v2-sandwich.md` documente une convention x/z **inversée** par rapport au code. `builder-sandwich.js` signale l'écart et applique la bonne. | Piège pour toute future session. Le code fait foi (§ architecture). |
+| 7 | `index.html` présente encore `scan.html` (v1) comme étape 1 du flux atelier. | Contredit la décision « v2 officielle ». |
+| 8 | Le pool `_seed` mélange 10 blocs `block_seed_*` (avec `exits`) et 5 blocs anciens sans `exits`, plus 2 blocmaps vides. Deux conventions de nommage. | Le générateur fonctionne en double mode pour compenser. |
+| 9 | `symbol-reader.js` subsiste alors que le scan de blocs a été abandonné. | Code mort. |
+| 10 | `.claude/worktrees/elegant-shtern-ef8496` duplique **12 Mo** du dépôt (branche datée de mai). | Pollue les recherches, double les résultats. |
+| 11 | Le dépôt n'a qu'**un seul commit**. Des mois de travail (35 fichiers modifiés, ~27 non suivis) ne sont pas versionnés. | Aucun point de restauration. Risque majeur. |
 
 ---
 
-*Document PRD v0.2 — version de travail itérative.*
+## 8. Risques
+
+| Risque | Probabilité / impact | Mitigation |
+|---|---|---|
+| Travail non versionné perdu | élevée / critique | Commiter avant tout gros chantier |
+| Le game feel ne décolle pas malgré le calibrage | moyenne / élevé | Diagnostic avant calibrage ; l'outil de véhicule de test permet d'isoler les variables |
+| Accessibilité daltonisme non tranchée | moyenne / moyen | Retours croisés à organiser ; le vocabulaire couleur est au cœur du dispositif |
+| Aucun atelier réel mené à ce jour | certaine / élevé | Toute validation reste théorique tant qu'un atelier complet n'a pas tourné |
+| Scan jamais testé hors feutres du porteur | moyenne / moyen | Tester d'autres marques avant le premier atelier |
+| Divergence entre `game-page.js` et `test-solo-v3.js` | élevée / moyen | Règle : la page la plus récemment modifiée proprement fait référence |
+
+---
+
+## 9. Métriques de succès V1
+
+**M1** — Un atelier complet tourne en ~1h15 avec 5 participant·es.
+**M2** — Le scan passe du premier coup dans la majorité des cas, la retouche suffit pour le reste.
+**M3** — Au debrief, les participant·es parlent d'**être arrivé·es ensemble**, pas de leur performance.
+**M4** — La conduite est jugée agréable par des gens qui ne jouent pas habituellement.
+**M5** — Le pool de blocs s'enrichit d'au moins un bloc créé par le groupe.
+
+---
+
+*PRD v1.0 — document de référence. Les valeurs configurables vivent dans `/config/*.json`. Ne jamais hardcoder.*

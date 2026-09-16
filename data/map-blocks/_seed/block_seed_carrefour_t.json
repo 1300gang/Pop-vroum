@@ -1,0 +1,17 @@
+{
+  "id": "block_seed_carrefour_t",
+  "name": "Carrefour en T",
+  "createdAt": "2026-05-11T00:00:00Z",
+  "atelier": "_seed",
+  "exits": ["N", "S", "E"],
+  "grid": [
+    ["dur", "dur", "dur", null, null, "dur", "dur", "dur"],
+    ["dur", "dur", "dur", null, null, "dur", "dur", "dur"],
+    ["dur", "dur", "dur", null, null, "dur", "dur", "dur"],
+    ["dur", "dur", "dur", null, null, null, null, null],
+    ["dur", "dur", "dur", null, null, null, null, null],
+    ["dur", "dur", "dur", null, null, "dur", "dur", "dur"],
+    ["dur", "dur", "dur", null, null, "dur", "dur", "dur"],
+    ["dur", "dur", "dur", null, null, "dur", "dur", "dur"]
+  ]
+}

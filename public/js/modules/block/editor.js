@@ -13,7 +13,7 @@
 //   { v:'ramp', r:90 }→ { v:'ramp', r:90 }
 
 export const TAILLE   = 8;
-export const SYMBOLES = ['ramp', 'sticky', 'dur', 'boost'];
+export const SYMBOLES = ['ramp', 'sticky', 'dur', 'boost', 'bump', 'movable', 'pole', 'ramp_n', 'ramp_e', 'ramp_s', 'ramp_o'];
 
 // ---- État interne ----
 
@@ -93,7 +93,8 @@ export function validerJouabilite() {
 }
 
 function _estPassable(v) {
-  return !v || v === 'ramp' || v === 'boost' || v === 'sticky';
+  return !v || v === 'ramp' || v === 'boost' || v === 'sticky'
+    || v === 'bump' || v === 'ramp_n' || v === 'ramp_e' || v === 'ramp_s' || v === 'ramp_o';
 }
 
 // ---- Export ----

@@ -62,14 +62,51 @@ export function onDebugResult(cb) {
 function _compterVoxels(grid) {
   const comptage = {};
   for (let x = 0; x < grid.length; x++) {
-    for (let z = 0; z < grid[x].length; z++) {
-      for (let y = 0; y < grid[x][z].length; y++) {
+    for (let z = 0; z < (grid[x]?.length ?? 0); z++) {
+      for (let y = 0; y < (grid[x][z]?.length ?? 0); y++) {
         const v = grid[x][z][y];
         if (v) comptage[v.color] = (comptage[v.color] || 0) + 1;
       }
     }
   }
   return comptage;
+}
+
+// ---- Recalcul après dommages (RACE-D03) ----
+
+const _POWER_COLORS = ['red', 'green', 'blue', 'orange', 'violet', 'pink'];
+
+/**
+ * Recalcule les stats et les pouvoirs actifs après perte de voxels.
+ * Les stats sont des ratios [0, 1] (0 = plus aucun voxel de cette couleur).
+ *
+ * @param {Array} newGrid      — grille mise à jour après impact (grid[x][z][y])
+ * @param {Array} originalGrid — grille originale au chargement du véhicule
+ * @returns {{ stats: {speed,grip,accel}, activePowers: string[], lostPowers: string[] }}
+ */
+export function recalcStats(newGrid, originalGrid) {
+  const newCounts  = _compterVoxels(newGrid);
+  const origCounts = _compterVoxels(originalGrid);
+
+  // Ratio par couleur : 0 si couleur disparue, 1 si intacte, proportionnel sinon
+  const ratio = (color) => {
+    const orig = origCounts[color] || 0;
+    if (orig === 0) return 1.0;
+    return Math.max(0, Math.min(1, (newCounts[color] || 0) / orig));
+  };
+
+  const stats = {
+    speed: ratio('red'),
+    grip:  ratio('green'),
+    accel: ratio('blue'),
+  };
+
+  const activePowers = _POWER_COLORS.filter(c => (newCounts[c] || 0) > 0);
+  const lostPowers   = _POWER_COLORS.filter(
+    c => (origCounts[c] || 0) > 0 && (newCounts[c] || 0) === 0
+  );
+
+  return { stats, activePowers, lostPowers };
 }
 
 function _formaterComptage(comptage) {

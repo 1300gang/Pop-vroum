@@ -29,6 +29,11 @@ let _outil     = null;
 let _rotations = { ramp: 0, sticky: 0, dur: 0, boost: 0 };
 let _drag      = false;
 
+// SOLO-04 : cycle des directions de rampe directionnelle
+const RAMP_DIRS     = ['ramp_n', 'ramp_e', 'ramp_s', 'ramp_o'];
+const RAMP_DIRS_ICO = { ramp_n: '↑', ramp_e: '→', ramp_s: '↓', ramp_o: '←' };
+const RAMP_DIRS_LBL = { ramp_n: 'N', ramp_e: 'E', ramp_s: 'S', ramp_o: 'O' };
+
 // ---- Rendu 3D (créé à la demande) ----
 let _renderer3D = null;
 
@@ -36,10 +41,17 @@ let _renderer3D = null;
 // Flèche de base par symbole, tournée par CSS selon la rotation
 
 const ICONES = {
-  ramp:   '↑',   // rampe : inclinaison vers le haut
-  sticky: '●',   // collant : pas de direction
-  dur:    '■',   // dur : pas de direction
-  boost:  '▲',   // boost : direction de propulsion
+  ramp:    '↑',
+  sticky:  '●',
+  dur:     '■',
+  boost:   '▲',
+  bump:    '⛰',
+  movable: '□',
+  pole:    '|',
+  ramp_n:  '↑',
+  ramp_e:  '→',
+  ramp_s:  '↓',
+  ramp_o:  '←',
 };
 
 // ---- Construction de la grille DOM ----
@@ -116,7 +128,8 @@ function _afficherValidation() {
 }
 
 function _estPassable(v) {
-  return !v || v === 'ramp' || v === 'boost' || v === 'sticky';
+  return !v || v === 'ramp' || v === 'boost' || v === 'sticky'
+    || v === 'bump' || v === 'ramp_n' || v === 'ramp_e' || v === 'ramp_s' || v === 'ramp_o';
 }
 
 // ---- Aperçu 3D ----
@@ -148,6 +161,14 @@ function _toggleApercu() {
  * @param {string|null} symbole
  */
 function _selectionnerOutil(symbole) {
+  // SOLO-04 : meta-outil ramp_dir — cycle entre ramp_n/e/s/o
+  if (symbole === 'ramp_dir') {
+    const curIdx = RAMP_DIRS.indexOf(_outil);
+    _outil = curIdx >= 0 ? RAMP_DIRS[(curIdx + 1) % 4] : 'ramp_n';
+    _majPalette();
+    return;
+  }
+
   const memeOutil   = symbole === _outil;
   const estDirec    = symbole === 'ramp' || symbole === 'boost';
 
@@ -162,8 +183,21 @@ function _selectionnerOutil(symbole) {
 }
 
 function _majPalette() {
+  // Met à jour l'icône et le badge du bouton ramp_dir selon la direction active
+  const rampDirEl = document.querySelector('[data-symbole="ramp_dir"]');
+  if (rampDirEl) {
+    const dirActif = RAMP_DIRS.includes(_outil);
+    rampDirEl.classList.toggle('actif', dirActif);
+    const icoEl = document.getElementById('ramp-dir-ico');
+    const rotEl = document.getElementById('ramp-dir-rot');
+    if (icoEl) icoEl.textContent = dirActif ? RAMP_DIRS_ICO[_outil] : '↑';
+    if (rotEl) rotEl.textContent = dirActif ? RAMP_DIRS_LBL[_outil] : '';
+  }
+
   document.querySelectorAll('.outil').forEach(el => {
     const s = el.dataset.symbole === 'null' ? null : el.dataset.symbole;
+    if (s === 'ramp_dir') return; // déjà traité ci-dessus
+
     const actif = s === _outil;
     el.classList.toggle('actif', actif);
 

@@ -40,6 +40,24 @@ app.get('/api/map-blocks', async (_req, res) => {
   }
 });
 
+// ---- Helpers ----
+
+// Sanitise un champ texte entrant — protection XSS + whitelist.
+// Règles pseudo : alphanumérique, tiret, underscore, espace, accents courants.
+// Règles nom bloc / note : maxLength=100, même whitelist élargie.
+function sanitizeText(input, maxLength = 20) {
+  if (typeof input !== 'string') return '';
+  return input
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    // Whitelist : lettres (y compris accents), chiffres, tiret, underscore, espace
+    .replace(/[^\p{L}\p{N}_\- ]/gu, '')
+    .trim()
+    .slice(0, maxLength);
+}
+
 // ---- Suivi socket → match ----
 // socketId → matchId
 const socketToMatch = new Map();
@@ -53,16 +71,17 @@ io.on('connection', (socket) => {
   // lobby:join
   // ------------------------------------------------------------------
   socket.on('lobby:join', ({ lobbyId, vehicle, playerName } = {}) => {
-    const cible = lobbyId ?? LobbyManager.findOrCreateLobby();
+    const cible    = lobbyId ?? LobbyManager.findOrCreateLobby();
+    const nomPropre = sanitizeText(playerName) || 'Anonyme';
 
-    const result = LobbyManager.joinLobby(cible, socket.id, vehicle ?? null, playerName ?? 'Anonyme');
+    const result = LobbyManager.joinLobby(cible, socket.id, vehicle ?? null, nomPropre);
     if (!result.ok) {
       socket.emit('lobby:error', { message: result.error });
       return;
     }
 
     socket.join(cible);
-    console.log(`${playerName ?? 'Anonyme'} (${socket.id}) → lobby ${cible}`);
+    console.log(`${nomPropre} (${socket.id}) → lobby ${cible}`);
     io.to(cible).emit('lobby:update', LobbyManager.getLobbyState(cible));
   });
 

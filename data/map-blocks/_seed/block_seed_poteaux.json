@@ -1,0 +1,18 @@
+{
+  "id": "block_seed_poteaux",
+  "name": "Slalom poteaux",
+  "createdAt": "2026-05-12T00:00:00Z",
+  "atelier": "_seed",
+  "exits": ["N", "S"],
+  "note": "Slalom entre des poteaux cassables — les poteaux disparaissent à haute vitesse (deltaV > POLE_BREAK_THRESHOLD)",
+  "grid": [
+    ["dur", "dur", null,  null,  null,  null,  "dur", "dur"],
+    ["dur", null,  null,  null,  null,  null,  null,  "dur"],
+    ["dur", null,  "pole",null,  null,  null,  null,  "dur"],
+    ["dur", null,  null,  null,  null,  "pole",null,  "dur"],
+    ["dur", null,  "pole",null,  null,  null,  null,  "dur"],
+    ["dur", null,  null,  null,  null,  "pole",null,  "dur"],
+    ["dur", null,  null,  null,  null,  null,  null,  "dur"],
+    ["dur", "dur", null,  null,  null,  null,  "dur", "dur"]
+  ]
+}

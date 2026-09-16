@@ -282,6 +282,7 @@ const ecranValidation  = document.getElementById('ecran-validation');
 const canvasValidation = document.getElementById('canvas-validation');
 const inputPseudo      = document.getElementById('input-pseudo');
 const btnValider       = document.getElementById('btn-valider');
+const btnRetoucher     = document.getElementById('btn-retoucher');
 const btnRescanner     = document.getElementById('btn-rescanner');
 
 let _previewScene = null;
@@ -549,6 +550,28 @@ btnValider.addEventListener('click', () => {
   };
   localStorage.setItem('pop-vroum:vehicule-courant', JSON.stringify(entree));
   window.location.href = 'lobby.html';
+});
+
+btnRetoucher?.addEventListener('click', () => {
+  const pseudo  = inputPseudo.value.trim() || 'Anonyme';
+  const vehicule = btnValider._vehicule;
+  if (!vehicule) return;
+  localStorage.setItem('pop-vroum:pseudo', pseudo);
+  let id;
+  try {
+    id = Gallery.save({
+      playerName: pseudo, grid: vehicule.grid,
+      wheelPositions: vehicule.wheelPositions, stats: vehicule.stats, powers: vehicule.powers,
+    });
+  } catch (e) {
+    id = `veh_${Date.now()}`;
+  }
+  const entree = Gallery.get(id) || {
+    id, playerName: pseudo, grid: vehicule.grid,
+    wheelPositions: vehicule.wheelPositions, stats: vehicule.stats, powers: vehicule.powers,
+  };
+  localStorage.setItem('pop-vroum:vehicule-courant', JSON.stringify(entree));
+  window.location.href = 'scan-edit.html';
 });
 
 btnRescanner.addEventListener('click', () => {

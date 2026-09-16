@@ -691,8 +691,8 @@ function _boucle(now) {
     // Positionnement mesh — convention V2 : rotation.y = -angle (forward = cos/sin)
     _vehicleGroup.position.set(_carState.position.x, 0.4, _carState.position.z);
     _vehicleGroup.rotation.y = -_carState.angle;
-    // Roll visuel en dérapage (E03-S13)
-    applyRoll(_vehicleGroup, _carState.drifting, inputs.steering);
+    // Legacy : steerInput en proxy (v_lateral ~ -steering en physique V1)
+    applyRoll(_vehicleGroup, _carState.drifting, -inputs.steering);
 
     // Skid orienté sur velocity réelle (E03-S11)
     if (_carState.drifting && _carState.speed > 0.5) {
