@@ -14,9 +14,13 @@ import * as camera    from '../modules/game/camera.js';
 import * as skid      from '../modules/game/skid.js';
 import * as particles from '../modules/game/particles.js';
 import * as powers    from '../modules/game/powers.js';
+import { cohesionState } from '../modules/game/cohesion.js';
+import * as cohesionView from '../modules/game/cohesion-view.js';
 import * as Client    from '../modules/network/client.js';
 import * as Sync      from '../modules/network/sync.js';
 import { initMinimap, updateMinimap } from '../modules/game/minimap.js';
+import { boundsFromExtent } from '../modules/game/collision.js';
+import { buildFence } from '../modules/game/fence.js';
 import { applyImpactDamage } from '../modules/voxel/impact.js';
 import { recalcStats, computeStats } from '../modules/voxel/stats.js';
 
@@ -34,6 +38,21 @@ const COULEUR_FR = {
   red: 'rouge', green: 'vert', blue: 'bleu',
   orange: 'orange', violet: 'violet', pink: 'rose',
 };
+
+// Couleur majoritaire de la grille voxel — pour teinter les effets (poussière de drift)
+// selon le véhicule plutôt qu'une couleur neutre fixe.
+function _couleurDominante(grid) {
+  if (!grid) return '#c8b89a';
+  const comptage = {};
+  for (let x = 0; x < 8; x++)
+    for (let z = 0; z < 4; z++)
+      for (let y = 0; y < 4; y++) {
+        const c = grid[x]?.[z]?.[y];
+        if (c) comptage[c.color] = (comptage[c.color] || 0) + 1;
+      }
+  const [dominant] = Object.entries(comptage).sort((a, b) => b[1] - a[1])[0] ?? [];
+  return dominant ? COULEUR_HEX[dominant] ?? '#c8b89a' : '#c8b89a';
+}
 
 const POUVOIR_INFO = {
   aspiration: { nom: 'Aspiration', couleur: '#ff3333' },
@@ -90,6 +109,9 @@ const _powersHandles  = new Map();
 // SOLO-07 : groupes Three.js par bloc pour culling Chebyshev ("col,row" → Group)
 const _blockGroups = new Map();
 let _renderDistance = 3;
+let _fenceCfg       = null;  // config map.fence — visuel seul, le serveur fait la collision
+let _physConsts     = null;   // /config/gameplay.json → physics (réglage du roulis)
+let _cohesionCfg    = null;   // /config/gameplay.json → cohesion (rayon + anneaux)
 
 // SOLO-06
 let _minimapInstance = null;
@@ -185,7 +207,10 @@ async function init() {
   try {
     const cfg = await fetch('/config/gameplay.json').then(r => r.json());
     _renderDistance = cfg.physics?.RENDER_DISTANCE ?? 3;
-  } catch { /* défaut 3 conservé */ }
+    _physConsts     = cfg.physics ?? null;
+    _cohesionCfg    = cfg.cohesion ?? null;
+    _fenceCfg       = cfg.map?.fence ?? null;
+  } catch { /* défauts conservés */ }
 
   _progression(10, 'Création de la scène…');
 
@@ -215,6 +240,7 @@ async function init() {
   skid.init(_scene);
   particles.init(_scene);
   await powers.init(_scene);
+  cohesionView.init(_scene, _cohesionCfg?.halo);
 
   // SOLO-08 : flèches debug vélocité/forward (masquées par défaut, touche D)
   _arrowVelocity = new THREE.ArrowHelper(
@@ -410,9 +436,9 @@ function _boucle(now) {
 
       const vLatApprox = (state.speed ?? 0) * Math.sin(state.driftAngle ?? 0);
       // Fallback visuel : si le serveur n'a pas flag drifting mais qu'on glisse
-      // visiblement (v_lateral > seuil), on affiche quand même le roll/skid.
+      // visiblement (v_lateral > seuil), on affiche quand même les traces.
       const driftingVisuel = state.drifting || Math.abs(vLatApprox) > 1.0;
-      applyRoll(entry.group, driftingVisuel, vLatApprox, 'x');
+      applyRoll(entry.group, vLatApprox, dt, 'x', _physConsts);
 
       positions.push(state.position);
 
@@ -457,10 +483,11 @@ function _boucle(now) {
         );
 
         if (spd > 5 && Math.random() < 0.12) {
+          const vehiculeJoueur = _allPlayers.find(p => p.playerId === pid)?.vehicle;
           particles.emitDust(
             { x: state.position.x - nx * 0.7, y: 0.15 + elevY, z: state.position.z - nz * 0.7 },
             state.velocity,
-            '#c8b89a',
+            _couleurDominante(vehiculeJoueur?.grid),
             1 + Math.floor(Math.random() * 2),
           );
         }
@@ -470,15 +497,33 @@ function _boucle(now) {
     skid.update();
     particles.update(dt);
 
-    // Pouvoirs : positionner les meshes et détecter les effets
-    const allVehiclesView = Object.entries(playersState).map(([pid, s]) => ({
-      id:       pid,
-      position: s.position,
-      angle:    s.angle,
-      speed:    s.speed,
-      stats:    _allPlayers.find(p => p.playerId === pid)?.vehicle?.stats ?? {},
-    }));
-    powers.update(allVehiclesView, dt);
+    // Pouvoirs : le serveur fait autorité sur les effets et sur l'usure des
+    // boucliers (server/game-loop.js) ; le client ne fait que les rendre.
+    const allVehiclesView = [];
+    const effetsServeur   = [];
+    for (const [pid, s] of Object.entries(playersState)) {
+      allVehiclesView.push({
+        id:       pid,
+        position: s.position,
+        angle:    s.angle,
+        speed:    s.speed,
+      });
+      powers.setShieldState(pid, s.shield ?? null);
+      for (const type of s.effects?.types ?? []) {
+        effetsServeur.push({ targetId: pid, effect: type, position: s.position });
+      }
+    }
+    powers.update(allVehiclesView, dt, effetsServeur);
+
+    // Cohésion rendue visible : un halo unique autour du groupe, dont le rayon
+    // suit l'écartement. La jauge seule restait abstraite.
+    const rayonCoh = _cohesionCfg?.radiusUnits ?? 8;
+    cohesionView.update(
+      allVehiclesView,
+      cohesionState(allVehiclesView, rayonCoh),
+      dt,
+      rayonCoh,
+    );
 
     // SOLO-08 : flèches debug vélocité/forward du joueur local
     if (_debugArrows) {
@@ -664,6 +709,13 @@ function _construireMeshMap(map) {
     arrivee.position.set(exitPos.x, 0.02, exitPos.z);
     group.add(arrivee);
   }
+
+  // Clôture : rendu seul. La collision est calculée par le serveur (game-loop),
+  // qui fait autorité ; le client ne fait que montrer où est la limite pour
+  // qu'un mur invisible ne passe pas pour un bug.
+  const fenceBounds = boundsFromExtent(map.worldExtent, _fenceCfg);
+  const fence       = buildFence(fenceBounds, _fenceCfg ?? {});
+  if (fence) group.add(fence);
 
   return group;
 }
@@ -1092,8 +1144,14 @@ function _renderCharts(cohesionVal) {
 
 // Applique les dommages d'impact sur la copie locale du véhicule du joueur,
 // reconstruit le mesh, émet des cubes de couleur et met à jour le HUD.
-function _appliquerDommagesLocaux(state, deltaSpeed) {
+function _appliquerDommagesLocaux(state, deltaSpeedBrut) {
   if (!_localVehicleData?.grid || !_localVehicleData.originalGrid) return;
+
+  // Le bouclier encaisse d'abord. Le serveur l'use de son côté à chaque choc ;
+  // ici on retire simplement la part du choc qu'il a absorbée avant de casser
+  // des voxels, pour que le dôme protège vraiment quelque chose.
+  const deltaSpeed = deltaSpeedBrut * (1 - powers.shieldAbsorption(_playerId));
+  if (deltaSpeed <= 0) return;
 
   // Normale d'impact = inverse de la velocity (on a foncé dans un mur)
   const spd = Math.max(0.01, state.speed);

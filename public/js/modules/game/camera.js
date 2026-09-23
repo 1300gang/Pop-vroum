@@ -3,8 +3,19 @@
 
 import * as THREE from '../../lib/three.module.js';
 
-const LERP_POS   = 0.08;
+// Suivi volontairement resserré : le lissage s'applique deux fois (barycentre
+// puis position caméra), donc un coefficient bas se paie double en retard. À
+// 0,08 la caméra traînait d'environ un demi-blocmap derrière la voiture.
+const LERP_POS   = 0.14;
 const LERP_ZOOM  = 0.05;
+
+// --- Anticipation directionnelle ---
+// La caméra regarde devant la voiture, dans la direction où elle va réellement.
+// L'ancienne version anticipait sur un axe fixe (+X), hérité d'une époque où la
+// map se traversait de gauche à droite : dans un labyrinthe où l'on roule aussi
+// vers le nord ou le sud, elle regardait donc systématiquement de travers.
+const LERP_LEAD    = 0.06;   // lissage de la direction (lent : évite le fouet en virage)
+const LEAD_MIN_MOVE = 0.02;  // en deçà, le déplacement est du bruit — on garde la direction
 // Suivi vertical volontairement plus lent que le suivi horizontal : la voiture
 // s'échappe vers le haut du cadre au décollage, et la caméra la rattrape. C'est
 // ce décalage qui fait lire le saut — une caméra collée à la voiture l'aplatit.
@@ -31,6 +42,13 @@ let _targetHalfW = ZOOM_MIN;
 let _currentHalfW = ZOOM_MIN; // suivi séparé pour éviter la divergence avec _camera.right
 let _currentPos  = new THREE.Vector3();
 let _targetPos   = new THREE.Vector3();
+
+// Direction d'anticipation (unitaire, plan XZ) + barycentre de la frame précédente.
+// On dérive la direction du déplacement du barycentre plutôt que de demander les
+// vélocités aux appelants : ça marche pour les quatre pages, y compris le
+// multijoueur qui ne transmet que des positions.
+let _leadX  = 1, _leadZ = 0;
+let _prevCX = null, _prevCZ = null;
 
 // Coup de zoom ponctuel (boost, collant) — s'estompe tout seul
 let _kick = 0;
@@ -62,6 +80,8 @@ export function createCamera(canvasW, canvasH) {
   _targetPos.set(0, 0, 0);
   _targetHalfW  = ZOOM_MIN;
   _currentHalfW = ZOOM_MIN;
+  _leadX = 1; _leadZ = 0;
+  _prevCX = null; _prevCZ = null;
 
   return _camera;
 }
@@ -99,6 +119,24 @@ export function update(positions) {
   _currentHalfW = _lerp(_currentHalfW, _targetHalfW, LERP_ZOOM);
   const hw = _currentHalfW;
 
+  // ---- Direction d'anticipation ----
+  // Dérivée du déplacement du barycentre, lissée. En dessous du seuil on conserve
+  // la dernière direction connue : à l'arrêt, la caméra ne doit pas se mettre à
+  // tourner sur du bruit numérique.
+  if (_prevCX !== null) {
+    const dx = cx - _prevCX;
+    const dz = cz - _prevCZ;
+    const d  = Math.sqrt(dx * dx + dz * dz);
+    if (d > LEAD_MIN_MOVE) {
+      _leadX = _lerp(_leadX, dx / d, LERP_LEAD);
+      _leadZ = _lerp(_leadZ, dz / d, LERP_LEAD);
+      const n = Math.sqrt(_leadX * _leadX + _leadZ * _leadZ);
+      if (n > 0.001) { _leadX /= n; _leadZ /= n; }
+    }
+  }
+  _prevCX = cx;
+  _prevCZ = cz;
+
   // ---- Position cible (lerp doux) ----
   _targetPos.x = _lerp(_targetPos.x, cx, LERP_POS);
   _targetPos.z = _lerp(_targetPos.z, cz, LERP_POS);
@@ -121,7 +159,11 @@ export function update(positions) {
   _camera.bottom = -hw;
 
   _camera.position.copy(_currentPos);
-  _camera.lookAt(_targetPos.x + LOOK_AHEAD, _targetPos.y, _targetPos.z);
+  _camera.lookAt(
+    _targetPos.x + _leadX * LOOK_AHEAD,
+    _targetPos.y,
+    _targetPos.z + _leadZ * LOOK_AHEAD,
+  );
 
   // ---- Screen shake : offset 2D aléatoire sur position caméra ----
   if (_shakeIntensity > 0.005) {

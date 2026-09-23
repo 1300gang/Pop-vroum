@@ -54,20 +54,17 @@ export function init(scene, map, buildMeshFn, renderDistance = Infinity) {
     const col = bloc.col;
     if (!_blocksByCol.has(col)) _blocksByCol.set(col, []);
 
-    const rotated = _rotate90CW(bloc.grid, null);
-    // RACE-C01 : rotation de elevationGrid si présent, fill 0 (rétrocompat)
-    const rotatedElevation = bloc.elevationGrid
-      ? _rotate90CW(bloc.elevationGrid, 0)
-      : null;
-
+    // Plus aucune rotation ici : le pool est pivoté une fois au chargement
+    // (map-generator.prepareBlockForGame). La rotation appliquée à ce stade
+    // déplaçait les couloirs APRÈS l'assemblage et murait une liaison sur deux.
     _blocksByCol.get(col).push({
       blockId:       bloc.blockId,
       name:          bloc.name,
       col:           bloc.col,
       row:           bloc.row,
       position:      bloc.position,
-      grid:          rotated,
-      elevationGrid: rotatedElevation,
+      grid:          bloc.grid,
+      elevationGrid: bloc.elevationGrid ?? null,
     });
   }
 }

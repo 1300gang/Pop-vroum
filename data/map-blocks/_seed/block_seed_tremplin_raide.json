@@ -1,0 +1,103 @@
+{
+  "id": "block_seed_tremplin_raide",
+  "name": "Tremplin raide",
+  "createdAt": "2026-09-21T00:00:00Z",
+  "atelier": "_seed",
+  "exits": [
+    "N",
+    "S"
+  ],
+  "note": "Rampe très courte : décollage violent, saut haut et court. Deux voies plates de part et d'autre : le saut est optionnel et le bloc reste franchissable dans les deux sens.",
+  "grid": [
+    [
+      "dur",
+      "dur",
+      null,
+      null,
+      null,
+      null,
+      "dur",
+      "dur"
+    ],
+    [
+      "dur",
+      "dur",
+      null,
+      null,
+      null,
+      null,
+      "dur",
+      "dur"
+    ],
+    [
+      "dur",
+      "dur",
+      null,
+      null,
+      null,
+      null,
+      "dur",
+      "dur"
+    ],
+    [
+      "dur",
+      "dur",
+      null,
+      null,
+      null,
+      null,
+      "dur",
+      "dur"
+    ],
+    [
+      "dur",
+      "dur",
+      null,
+      null,
+      null,
+      null,
+      "dur",
+      "dur"
+    ],
+    [
+      "dur",
+      "dur",
+      null,
+      {
+        "type": "rampe_pente",
+        "direction": "N",
+        "elevation_start": 0.0,
+        "elevation_end": 1.0
+      },
+      {
+        "type": "rampe_pente",
+        "direction": "N",
+        "elevation_start": 0.0,
+        "elevation_end": 1.0
+      },
+      null,
+      "dur",
+      "dur"
+    ],
+    [
+      "dur",
+      "dur",
+      null,
+      null,
+      null,
+      null,
+      "dur",
+      "dur"
+    ],
+    [
+      "dur",
+      "dur",
+      null,
+      null,
+      null,
+      null,
+      "dur",
+      "dur"
+    ]
+  ]
+}

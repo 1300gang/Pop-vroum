@@ -1,7 +1,7 @@
 // Détection du terrain sous le véhicule et collisions avec blocs durs.
 //
 // Contrat I/O :
-//   checkTerrain(pos, blocks, cellSize, vehicleElevation, forme?)
+//   checkTerrain(pos, blocks, cellSize, vehicleElevation, forme?, bounds?)
 //     → { softTerrain, rampe, hardCollision, hardCellType, pushBack, elevationTarget }
 //
 //   softTerrain     : 'sticky' | 'boost' | 'bump' | 'rampe_bosse' | rampes | null
@@ -20,6 +20,15 @@
 //   vehicleElevation (défaut 0) : si une cellule a une élévation supérieure à celle du
 //   véhicule, elle est traitée comme un mur dur quelle que soit son type.
 //
+// Clôture (bounds) : quatre murs analytiques aux bornes du monde, sans cellules ni
+//   meshes, donc à coût constant quelle que soit la taille de la map. Elle referme la
+//   condition de victoire, qui ne teste qu'une distance au bloc d'arrivée : sans elle,
+//   contourner le labyrinthe par l'extérieur mène droit à la sortie.
+//   Volontairement indépendante de l'élévation — un véhicule qui décolle d'une rampe
+//   doit être arrêté aussi, sinon le contournement redevient possible en sautant.
+//   Un contact clôture est un contact mur ordinaire (hardCellType 'fence') : rebond,
+//   étincelles, dégâts et recul automatique en découlent sans code dédié côté appelant.
+//
 // Chaque bloc a { position: [worldX, worldZ], grid: 8×8, elevationGrid?: 8×8 }.
 // Les grilles sont déjà rotées par map-loader (déplacement en +X).
 // cellSize = blockScale (unités monde par cellule, défaut 1 pour rétrocompatibilité).
@@ -28,6 +37,19 @@
 // bosses, boost…). Volontairement petite : c'est elle qui décide quand le sol se
 // dérobe, toute la physique de saut est réglée dessus.
 export const VEHICLE_RADIUS = 0.65;
+
+// ---- Config injectée (même motif que physics.js) ----
+let _config = null;
+
+/**
+ * Injecte la section `physics` de gameplay.json.
+ * Sert aujourd'hui à WALL_TOP_LEVEL : sans config, les murs restent
+ * infranchissables, donc le comportement d'origine est préservé.
+ * @param {object} cfg
+ */
+export function setConfig(cfg) {
+  _config = cfg;
+}
 const BLOCK_SIZE = 8;
 
 // Dimensions des obstacles en fraction de cellule. Exportées pour que les meshes
@@ -208,6 +230,60 @@ function _hauteurRampe(cell, cellType, pos, cellX, cellZ, cellSize) {
   return null;
 }
 
+// ---- Clôture : murs analytiques aux bornes du monde ----
+
+/**
+ * Construit les bornes de clôture à partir de l'étendue monde d'une map.
+ * Retourne null si la clôture est désactivée ou si l'étendue est absente, ce qui
+ * permet de passer le résultat tel quel à checkTerrain.
+ *
+ * @param {{ width: number, depth: number }} worldExtent — map.worldExtent
+ * @param {{ enabled?: boolean, margin?: number }} [fenceCfg] — config/gameplay.json map.fence
+ * @returns {{ minX, maxX, minZ, maxZ } | null}
+ */
+export function boundsFromExtent(worldExtent, fenceCfg = null) {
+  if (!worldExtent || fenceCfg?.enabled === false) return null;
+  const m = fenceCfg?.margin ?? 0;
+  return {
+    minX: -m,
+    maxX: worldExtent.width + m,
+    minZ: -m,
+    maxZ: worldExtent.depth + m,
+  };
+}
+
+/**
+ * Dégagement du véhicule vers l'intérieur des bornes.
+ *
+ * La carrosserie est une boîte orientée : son débord sur chaque axe monde est la
+ * projection de ses deux demi-axes, sinon une voiture en travers traverse la
+ * clôture par les coins.
+ *
+ * @param {{ x: number, z: number }} pos — centre du véhicule
+ * @param {object} f — forme normalisée par _formeContact
+ * @param {{ minX, maxX, minZ, maxZ }} bounds
+ * @returns {{ x: number, z: number } | null} — poussée, ou null hors contact
+ */
+function _pousseeCloture(pos, f, bounds) {
+  const rx = f.hl * Math.abs(f.ux) + f.hw * Math.abs(f.vx);
+  const rz = f.hl * Math.abs(f.uz) + f.hw * Math.abs(f.vz);
+
+  let px = 0;
+  let pz = 0;
+
+  const debordOuest = (bounds.minX + rx) - pos.x;
+  if (debordOuest > 0) px = debordOuest;
+  const debordEst = (pos.x + rx) - bounds.maxX;
+  if (debordEst > 0) px = -debordEst;
+
+  const debordNord = (bounds.minZ + rz) - pos.z;
+  if (debordNord > 0) pz = debordNord;
+  const debordSud = (pos.z + rz) - bounds.maxZ;
+  if (debordSud > 0) pz = -debordSud;
+
+  return (px === 0 && pz === 0) ? null : { x: px, z: pz };
+}
+
 /**
  * V4-03 : niveau auquel le véhicule a droit.
  *
@@ -253,8 +329,9 @@ function _niveauAutorise(pos, blocks, cellSize, vehicleElevation) {
  * @param {number} [vehicleElevation=0] — élévation courante (0 = sol, 1 = plateau)
  * @param {{ angle: number, demiLongueur: number, demiLargeur: number }} [forme]
  *   carrosserie du véhicule pour les chocs ; sans elle, carré de demi-côté VEHICLE_RADIUS
+ * @param {{ minX, maxX, minZ, maxZ }} [bounds] — clôture (boundsFromExtent) ; null = désactivée
  */
-export function checkTerrain(pos, blocks, cellSize = 1, vehicleElevation = 0, forme = null) {
+export function checkTerrain(pos, blocks, cellSize = 1, vehicleElevation = 0, forme = null, bounds = null) {
   let softTerrain     = null;
   let hardCollision   = false;
   let hardCellType    = null; // SOLO-04 : type de la cellule dure percutée
@@ -308,6 +385,20 @@ export function checkTerrain(pos, blocks, cellSize = 1, vehicleElevation = 0, fo
           continue;
         }
 
+        // Un mur « dur » a désormais un sommet : au-dessus, on passe et on peut
+        // s'y poser. Sans ça un saut ne servait à rien au-dessus d'une cloison,
+        // qui bloquait à n'importe quelle hauteur de vol.
+        // WALL_TOP_LEVEL = 0 rétablit l'ancien comportement (mur infini).
+        const sommetMur  = _config?.WALL_TOP_LEVEL ?? 0;
+        const surplombe  = cellType === 'dur' && sommetMur > 0
+                        && vehicleElevation >= sommetMur - _TOLERANCE_RAMPE;
+
+        // Survoler un mur, c'est pouvoir atterrir dessus : son sommet devient sol.
+        if (surplombe) {
+          if (enAppui && sommetMur > elevationTarget) elevationTarget = sommetMur;
+          continue;
+        }
+
         // SOLO-04 : pole et movable bloquent comme dur (effets visuels côté client)
         const isHardCell = cellType === 'dur' || cellType === 'pole' || cellType === 'movable' || elevationBloque;
 
@@ -352,6 +443,21 @@ export function checkTerrain(pos, blocks, cellSize = 1, vehicleElevation = 0, fo
           if (cellElevation > elevationTarget) elevationTarget = cellElevation;
         }
       }
+    }
+  }
+
+  // Clôture : traitée comme un mur ordinaire, poussées fusionnées avec celles des
+  // blocs — dans un coin, le véhicule touche la paroi et la clôture au même frame
+  // et les deux dégagements doivent s'additionner au lieu de se remplacer.
+  if (bounds) {
+    const pousseCloture = _pousseeCloture(pos, f, bounds);
+    if (pousseCloture) {
+      hardCollision = true;
+      if (!hardCellType) hardCellType = 'fence';
+      if (pousseCloture.x > 0) pxPlus = Math.max(pxPlus, pousseCloture.x);
+      else                     pxMoins = Math.min(pxMoins, pousseCloture.x);
+      if (pousseCloture.z > 0) pzPlus = Math.max(pzPlus, pousseCloture.z);
+      else                     pzMoins = Math.min(pzMoins, pousseCloture.z);
     }
   }
 

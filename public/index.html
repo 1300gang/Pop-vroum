@@ -144,6 +144,20 @@
       opacity: .4;
     }
 
+    /* Regroupement par thème — un flux plat de 12 liens rendait dur de savoir
+       où chercher ; ici les sujets voisins (scan, physique, map…) sont ensemble. */
+    .dev-groupe { margin-bottom: 1rem; }
+    .dev-groupe:last-child { margin-bottom: 0; }
+
+    .dev-groupe-titre {
+      font-size: .68rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      opacity: .4;
+      margin-bottom: .4rem;
+    }
+
     /* ---- Séparateur ---- */
     .sep {
       height: 1px;
@@ -222,12 +236,12 @@
     <p class="section-titre">Flux atelier — dans l'ordre</p>
     <div class="grille-atelier">
 
-      <a href="/scan.html" class="carte">
+      <a href="/scan2.html" class="carte">
         <div class="carte-num">1</div>
         <div class="carte-corps">
           <h2>Scanner sa voiture</h2>
           <p>Placez votre feuille colorée devant la webcam pour reconstruire votre véhicule en 3D.</p>
-          <p style="font-size:.75rem;opacity:.5;margin-top:.25rem">feuille v1 — 3 vues orthogonales</p>
+          <p style="font-size:.75rem;opacity:.5;margin-top:.25rem">feuille v2 — sandwich, 4 tranches</p>
         </div>
       </a>
 
@@ -263,13 +277,7 @@
     <div class="cartes-feuilles">
 
       <div class="carte-feuille">
-        <h3>Feuille Véhicule <span style="font-size:.7rem;opacity:.5;font-weight:400">v1 — 3 vues</span></h3>
-        <p>Colorie ton véhicule en 3 vues orthographiques — A3, 4 QR codes, patch couleur.</p>
-        <a href="/assets/sheets/feuille-vehicule-A3.svg" download="feuille-vehicule-A3.svg" class="btn-feuille">Télécharger SVG</a>
-      </div>
-
-      <div class="carte-feuille" style="border: 1px solid rgba(245,166,35,.3);">
-        <h3>Feuille Véhicule <span style="font-size:.7rem;color:var(--couleur-orange);font-weight:700">TEST A/B — sandwich v2</span></h3>
+        <h3>Feuille Véhicule <span style="font-size:.7rem;opacity:.5;font-weight:400">v2 — sandwich</span></h3>
         <p>4 tranches vues du dessus — A4, plus intuitif pour les non-designers et les enfants.</p>
         <div style="display:flex;gap:.5rem;flex-wrap:wrap">
           <a href="/assets/sheets/feuille-vehicule-v2-sandwich-A4.pdf" download class="btn-feuille">PDF A4</a>
@@ -289,19 +297,43 @@
     <div class="sep"></div>
     <div class="section-dev">
       <p class="section-titre">Dev / Test</p>
-      <ul class="liste-dev">
-        <li><a href="/scan2.html">Scanner v2 — Sandwich <span style="color:var(--couleur-orange);font-size:.75em">TEST A/B</span></a></li>
-        <li><a href="/test-jeu-v2-solo.html">Test jeu solo (véhicule aléatoire, map procédurale)</a></li>
-        <li><a href="/test-map.html">Testeur de Map 2D (visualisation et rotation)</a></li>
-        <li><a href="/spectator.html">Vue spectateur</a></li>
-        <li><a href="/test-voxel.html">Test reconstruction voxel</a></li>
-        <li><a href="/test-gallery.html">Test galerie</a></li>
-        <li><a href="/test-block.html">Test bloc map</a></li>
-        <li><a href="/test-solo-v3.html">Test V3 de mon jeu</a></li>
-        <li><a href="/test-solo-v3.html?v4=1">Banc d'essai V4 (rampes, plateaux, bosses)</a></li>
-        <li><a href="/test-solo-v3.html?piste=1">Piste de mesure — sauts &amp; game feel</a></li>
-        <li><a href="/test-solo-v3.html?piste=effets">Piste des effets — un point sur chaque effet</a></li>
-      </ul>
+
+      <div class="dev-groupe">
+        <p class="dev-groupe-titre">Scan — pipeline v1, gelé</p>
+        <ul class="liste-dev">
+          <li><a href="/scan.html">Scanner v1 — 3 vues orthogonales (gelé)</a></li>
+          <li><a href="/assets/sheets/feuille-vehicule-A3.svg" download="feuille-vehicule-A3.svg">Feuille véhicule v1 (SVG, gelée)</a></li>
+          <li><a href="/test-voxel.html">Test reconstruction voxel</a></li>
+        </ul>
+      </div>
+
+      <div class="dev-groupe">
+        <p class="dev-groupe-titre">Jeu &amp; physique</p>
+        <ul class="liste-dev">
+          <li><a href="/test-v5.html">Test V5 — référence physique et calibrage des pouvoirs</a></li>
+          <li><a href="/test-v5.html?v4=1">Banc d'essai V5 (rampes, plateaux, bosses)</a></li>
+          <li><a href="/test-v5.html?piste=1">Piste de mesure — sauts &amp; game feel</a></li>
+          <li><a href="/test-v5.html?piste=effets">Piste des effets — un point sur chaque effet</a></li>
+          <li><a href="/test-jeu-v2-solo.html">Test jeu solo (véhicule aléatoire, map procédurale)</a></li>
+          <li><a href="/test-solo-v3.html">Test V3 (gelé — état avant le passage en V5)</a></li>
+        </ul>
+      </div>
+
+      <div class="dev-groupe">
+        <p class="dev-groupe-titre">Map &amp; blocs</p>
+        <ul class="liste-dev">
+          <li><a href="/test-map.html">Testeur de map 2D (visualisation et rotation)</a></li>
+          <li><a href="/test-block.html">Test bloc map</a></li>
+        </ul>
+      </div>
+
+      <div class="dev-groupe">
+        <p class="dev-groupe-titre">Autres</p>
+        <ul class="liste-dev">
+          <li><a href="/spectator.html">Vue spectateur</a></li>
+          <li><a href="/test-gallery.html">Test galerie</a></li>
+        </ul>
+      </div>
     </div>
 
     <footer>

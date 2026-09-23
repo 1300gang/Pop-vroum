@@ -1,0 +1,113 @@
+{
+  "id": "block_seed_tremplin_bosses",
+  "name": "Tremplin et bosses",
+  "createdAt": "2026-09-21T00:00:00Z",
+  "atelier": "_seed",
+  "exits": [
+    "N",
+    "S"
+  ],
+  "note": "Saut puis bosses à la réception, voies latérales plates.",
+  "grid": [
+    [
+      "dur",
+      "dur",
+      null,
+      null,
+      null,
+      null,
+      "dur",
+      "dur"
+    ],
+    [
+      "dur",
+      "dur",
+      null,
+      null,
+      "bump",
+      null,
+      "dur",
+      "dur"
+    ],
+    [
+      "dur",
+      "dur",
+      null,
+      "bump",
+      null,
+      null,
+      "dur",
+      "dur"
+    ],
+    [
+      "dur",
+      "dur",
+      null,
+      null,
+      null,
+      null,
+      "dur",
+      "dur"
+    ],
+    [
+      "dur",
+      "dur",
+      null,
+      null,
+      null,
+      null,
+      "dur",
+      "dur"
+    ],
+    [
+      "dur",
+      "dur",
+      null,
+      {
+        "type": "rampe_pente",
+        "direction": "N",
+        "elevation_start": 0.5,
+        "elevation_end": 1.0
+      },
+      {
+        "type": "rampe_pente",
+        "direction": "N",
+        "elevation_start": 0.5,
+        "elevation_end": 1.0
+      },
+      null,
+      "dur",
+      "dur"
+    ],
+    [
+      "dur",
+      "dur",
+      null,
+      {
+        "type": "rampe_pente",
+        "direction": "N",
+        "elevation_start": 0,
+        "elevation_end": 0.5
+      },
+      {
+        "type": "rampe_pente",
+        "direction": "N",
+        "elevation_start": 0,
+        "elevation_end": 0.5
+      },
+      null,
+      "dur",
+      "dur"
+    ],
+    [
+      "dur",
+      "dur",
+      null,
+      null,
+      null,
+      null,
+      "dur",
+      "dur"
+    ]
+  ]
+}

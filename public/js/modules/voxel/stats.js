@@ -109,6 +109,42 @@ export function recalcStats(newGrid, originalGrid) {
   return { stats, activePowers, lostPowers };
 }
 
+// Couleur → pouvoir, même correspondance que computeStats().
+const _POWER_PAR_COULEUR = {
+  red:    'aspiration',
+  green:  'phares',
+  blue:   'sillage',
+  orange: 'shield',
+  violet: 'attraction',
+  pink:   'heal',
+};
+
+/**
+ * Recalcule les valeurs de pouvoir après perte de voxels.
+ *
+ * Perdre du bleu doit affaiblir le sillage, perdre de l'orange le bouclier, etc.
+ * Chaque pouvoir est ramené au prorata des voxels de sa couleur encore en place.
+ *
+ * @param {Array} newGrid        — grille après impact (grid[x][z][y])
+ * @param {Array} originalGrid   — grille au chargement
+ * @param {object} originalPowers — pouvoirs calculés au chargement
+ * @returns {object} pouvoirs restants, mêmes clés que l'original
+ */
+export function recalcPowers(newGrid, originalGrid, originalPowers = {}) {
+  const neufs = _compterVoxels(newGrid);
+  const orig  = _compterVoxels(originalGrid);
+
+  const restants = {};
+  for (const [couleur, pouvoir] of Object.entries(_POWER_PAR_COULEUR)) {
+    const base = originalPowers[pouvoir] ?? 0;
+    const o    = orig[couleur] ?? 0;
+    restants[pouvoir] = o === 0
+      ? base
+      : base * Math.max(0, Math.min(1, (neufs[couleur] ?? 0) / o));
+  }
+  return restants;
+}
+
 function _formaterComptage(comptage) {
   const total = Object.values(comptage).reduce((s, n) => s + n, 0);
   if (total === 0) return 'aucun voxel';

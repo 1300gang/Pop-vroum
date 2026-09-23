@@ -173,3 +173,121 @@ export async function generateRandomVehicle(nom = 'Véhicule test', options = {}
     parCouleur,
   };
 }
+
+// ---- Véhicules de référence (équilibrage) ----
+//
+// L'aléatoire ne sert à rien pour équilibrer : deux essais ne sont jamais
+// comparables. Ces véhicules-ci sont construits par une règle fixe, donc leurs
+// stats sont exactement reproductibles d'une session à l'autre.
+//
+// Chaque préréglage décrit une carrosserie (longueur × largeur × hauteur en
+// voxels, à partir de l'arrière) et un remplissage par couleur. Rappel de la
+// convention : grid[x][z][y], x = 0..7 avant-arrière (7 = avant),
+// z = 0..3 gauche-droite, y = 0..3 bas-haut.
+
+export const PRESETS = [
+  {
+    id: 'etalon', nom: 'Étalon',
+    note: 'Référence neutre : un tiers de chaque couleur primaire.',
+    forme: { lg: 6, la: 4, ht: 2 },
+    couleurs: ['red', 'green', 'blue'],
+  },
+  {
+    id: 'fusee', nom: 'Fusée',
+    note: 'Tout en rouge : vitesse maximale, rien d\'autre.',
+    forme: { lg: 6, la: 3, ht: 2 },
+    couleurs: ['red'],
+  },
+  {
+    id: 'kart', nom: 'Kart',
+    note: 'Tout en vert : colle à la route, ne dérape presque jamais.',
+    forme: { lg: 5, la: 4, ht: 2 },
+    couleurs: ['green'],
+  },
+  {
+    id: 'catapulte', nom: 'Catapulte',
+    note: 'Tout en bleu : reprise foudroyante, vitesse de pointe ordinaire.',
+    forme: { lg: 5, la: 3, ht: 2 },
+    couleurs: ['blue'],
+  },
+  {
+    id: 'char', nom: 'Char',
+    note: 'Bloc plein orange : le plus lourd possible, gros bouclier.',
+    forme: { lg: 8, la: 4, ht: 4 },
+    couleurs: ['orange'],
+  },
+  {
+    id: 'brindille', nom: 'Brindille',
+    note: 'Le plus petit véhicule viable : sert de plancher de masse.',
+    forme: { lg: 4, la: 2, ht: 1 },
+    couleurs: ['red', 'green'],
+  },
+  {
+    id: 'savonnette', nom: 'Savonnette',
+    note: 'Long, étroit et rapide, sans une once de vert : part en glisse.',
+    forme: { lg: 8, la: 2, ht: 2 },
+    couleurs: ['red', 'blue'],
+  },
+  {
+    id: 'arc-en-ciel', nom: 'Arc-en-ciel',
+    note: 'Les six couleurs à parts égales, pour voir tous les pouvoirs à la fois.',
+    forme: { lg: 6, la: 4, ht: 3 },
+    couleurs: ['red', 'green', 'blue', 'orange', 'violet', 'pink'],
+  },
+];
+
+// Remplit une boîte centrée en z, posée au sol, alignée sur l'avant (x = 7).
+// Les couleurs alternent selon l'index linéaire : réparti, et déterministe.
+function _construireCarrosserie({ lg, la, ht }, couleurs) {
+  const grid = Array.from({ length: 8 }, () =>
+    Array.from({ length: 4 }, () => Array(4).fill(null)));
+
+  const x0 = 8 - lg;                       // collé à l'avant
+  const z0 = Math.floor((4 - la) / 2);     // centré en largeur
+  let i = 0;
+
+  for (let x = x0; x < 8; x++) {
+    for (let z = z0; z < z0 + la; z++) {
+      for (let y = 0; y < ht; y++) {
+        grid[x][z][y] = { color: couleurs[i % couleurs.length] };
+        i++;
+      }
+    }
+  }
+  return grid;
+}
+
+/**
+ * Construit un véhicule de référence à partir de son identifiant.
+ * Même forme de retour que generateRandomVehicle().
+ *
+ * @param {string} id — identifiant dans PRESETS
+ * @returns {Promise<object>}
+ */
+export async function generatePresetVehicle(id) {
+  const preset = PRESETS.find(p => p.id === id);
+  if (!preset) throw new Error(`Préréglage inconnu : ${id}`);
+
+  const grid = _construireCarrosserie(preset.forme, preset.couleurs);
+
+  const wheelPositions = detectWheels({
+    profileGrid: _deriveProfileGrid(grid),
+    topGrid:     _deriveTopGrid(grid),
+  });
+
+  const { stats, powers } = await computeStats(grid);
+  const parCouleur = _compterParCouleur(grid);
+
+  return {
+    grid,
+    wheelPositions,
+    stats,
+    powers,
+    palette: Object.entries(parCouleur).sort((a, b) => b[1] - a[1]).map(([c]) => c),
+    nom:        preset.nom,
+    note:       preset.note,
+    presetId:   preset.id,
+    voxelCount: _compterVoxels(grid),
+    parCouleur,
+  };
+}

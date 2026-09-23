@@ -93,9 +93,11 @@ export async function loadPool() {
   const pool = [];
 
   for (const b of blocs) {
-    if (b.special === 'depart') { depart = b; continue; }
-    if (b.special === 'arrivee') { arrivee = b; continue; }
-    pool.push(b);
+    // Pivotés ici une fois pour toutes — plus aucune rotation en aval.
+    const bloc = prepareBlockForGame(b);
+    if (b.special === 'depart')  { depart  = bloc; continue; }
+    if (b.special === 'arrivee') { arrivee = bloc; continue; }
+    pool.push(bloc);
   }
 
   return { depart, arrivee, pool: dedupePoolById(pool) };
@@ -183,6 +185,24 @@ function _rotateBlock(block, steps) {
   }
 
   return { ...block, grid, elevationGrid, exits };
+}
+
+/**
+ * Amène un bloc du repère d'écriture au repère du jeu.
+ *
+ * Les blocs sont rédigés « avant rotation » (leurs notes le disent), et la course
+ * se déroule en +X. map-loader.js et server/game-loop.js appliquaient chacun cette
+ * rotation APRÈS l'assemblage : le générateur ouvrait un couloir sur le bord Est
+ * d'un bloc, la rotation le déplaçait sur son bord Sud, et il ne rencontrait plus
+ * celui du voisin. Une liaison voulue sur deux se retrouvait murée (mesuré :
+ * 280/558). En pivotant le pool à l'entrée, le générateur raisonne directement
+ * dans la géométrie du jeu et ses liaisons sont exactes.
+ *
+ * @param {object} block
+ * @returns {object} bloc pivoté, exits recalculées
+ */
+export function prepareBlockForGame(block) {
+  return block ? _rotateBlock(block, 1) : block;
 }
 
 function _detectExits(grid) {

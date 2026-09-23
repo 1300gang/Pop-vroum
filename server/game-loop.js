@@ -20,14 +20,19 @@ import * as MatchEnd         from './match-end.js';
 import {
   setConfig as setPhysicsConfig,
   decompose, computeForces, detectDrift, computeTurnRate,
-  applyBounce, checkDamage, createState,
+  applyBounce, checkDamage, createState, tickDriftCharge, rampSteering,
 } from '../public/js/modules/game/physics.js';
-import { checkTerrain } from '../public/js/modules/game/collision.js';
+import { checkTerrain, boundsFromExtent, setConfig as setCollisionConfig } from '../public/js/modules/game/collision.js';
+import {
+  setConfig as setPowersConfig,
+  createPowerState, createPowerWorld, computeEffects, foldEffects, absorbDamage,
+} from '../public/js/modules/game/power-effects.js';
 import {
   setConfig as setMapGenConfig,
   generate  as generateMapData,
   getSurfaceGrip,
   dedupePoolById,
+  prepareBlockForGame,
   BLOCK_SIZE,
 } from '../public/js/modules/game/map-generator.js';
 
@@ -48,6 +53,8 @@ async function _chargerConfig() {
   // Injecter la config dans les modules partagés
   setPhysicsConfig({ ..._config.vehicleStats, ..._config.physics });
   setMapGenConfig(_config);
+  setPowersConfig(_config.powers);
+  setCollisionConfig(_config.physics);
 
   return _config;
 }
@@ -71,9 +78,11 @@ async function _chargerBlockPool() {
   let arrivee = null;
   const pool = [];
 
-  for (const b of [...seed, ...generated]) {
-    if (b.special === 'depart') { depart = b; continue; }
-    if (b.special === 'arrivee') { arrivee = b; continue; }
+  for (const brut of [...seed, ...generated]) {
+    // Même repère que le client : pivoté une fois, plus jamais ensuite.
+    const b = prepareBlockForGame(brut);
+    if (brut.special === 'depart')  { depart  = b; continue; }
+    if (brut.special === 'arrivee') { arrivee = b; continue; }
     // Les blocs seed (avec exits) ne sont pas filtrés par _estJouable :
     // le mode graph gère la compatibilité via les exits
     if (b.exits && b.exits.length > 0) { pool.push(b); continue; }
@@ -152,12 +161,12 @@ export async function startMatch(matchId, players, io, roomId) {
   const gridSize  = mapCfg.gridCols ?? mapCfg.gridSize ?? 8;
   const mapData   = await generateMapData(poolData, { gridSize });
 
-  // Rotation 90° CW de chaque grille pour mouvement en +X
-  for (const bloc of mapData.blocks) {
-    bloc.grid = _rotate90CW(bloc.grid);
-  }
-
   const blockScale = mapData.blockScale;
+
+  // Clôture : bornes figées à la génération. Le serveur fait autorité sur la
+  // physique, donc c'est ici qu'elle referme le contournement du labyrinthe —
+  // checkVictory ne teste qu'une distance au bloc d'arrivée.
+  const fenceBounds = boundsFromExtent(mapData.worldExtent, cfg.map?.fence);
 
   const playerStates = new Map();
   const socketMap    = new Map();
@@ -185,6 +194,10 @@ export async function startMatch(matchId, players, io, roomId) {
         grip:  stats.grip  ?? cfg.vehicleStats.baseGrip,
         accel: stats.accel ?? cfg.vehicleStats.baseAccel,
       },
+      // Pouvoirs : le serveur fait autorité (prd_pouvoirs.md §8). Les valeurs
+      // arrivaient déjà avec le véhicule au lobby:join, elles n'étaient
+      // simplement pas conservées.
+      powerState: createPowerState(p.vehicle?.powers ?? {}),
       physicsState: {
         position:  { x: spawnPos.x, z: spawnPos.z },
         velocity:  { x: 0, z: 0 },
@@ -210,13 +223,35 @@ export async function startMatch(matchId, players, io, roomId) {
 
   let lastTick = Date.now();
 
+  // Traînées de sillage du match. Elles vivent ici et pas dans le module :
+  // le serveur fait tourner plusieurs matchs à la fois.
+  const powerWorld = createPowerWorld();
+
   const intervalId = setInterval(() => {
     const now = Date.now();
     const dt  = Math.min((now - lastTick) / 1000, 0.1);
     lastTick  = now;
 
+    // ---- Pouvoirs : une seule passe, avant la physique ----
+    // Les effets sont recalculés à chaque tick puis repliés dans les stats au
+    // moment du calcul des forces. Ils ne sont jamais écrits dans
+    // ps.vehicleStats : c'est ce qui les empêche de se cumuler d'une frame à
+    // l'autre, défaut de l'ancien applyEffects() côté client.
+    const vuePouvoirs = [...playerStates.values()].map(ps => ({
+      id:       ps.playerId,
+      position: ps.physicsState.position,
+      angle:    ps.physicsState.angle,
+      speed:    ps.physicsState.speed,
+      power:    ps.powerState,
+    }));
+    const { effects } = computeEffects(vuePouvoirs, powerWorld, dt, now / 1000);
+    const effetsParJoueur = foldEffects(effects);
+
     for (const ps of playerStates.values()) {
-      _tickJoueur(ps, mapData, blockScale, dt, cfg);
+      _tickJoueur(
+        ps, mapData, blockScale, dt, cfg, fenceBounds,
+        effetsParJoueur[ps.playerId] ?? null,
+      );
     }
 
     const positions = [...playerStates.values()].map(ps => ps.physicsState.position);
@@ -239,6 +274,10 @@ export async function startMatch(matchId, players, io, roomId) {
         drifting:   ps.physicsState.drifting,
         driftAngle,
         elevation:  ps.physicsState.elevation ?? 0,
+        // Ce qui agit sur moi en ce moment — le client s'en sert pour les
+        // flashs et les halos, au lieu de redétecter chacun dans son coin.
+        effects:    _payloadEffets(effetsParJoueur[pid]),
+        shield:     _payloadBouclier(ps.powerState),
       };
     }
 
@@ -256,14 +295,14 @@ export async function startMatch(matchId, players, io, roomId) {
 
 // ---- Tick physique V2 par joueur ----
 
-function _tickJoueur(ps, map, blockScale, dt, cfg) {
+function _tickJoueur(ps, map, blockScale, dt, cfg, bounds = null, powerEffects = null) {
   const state    = ps.physicsState;
   const inputs   = ps.latestInputs;
   const ts       = ps.terrainState;
   const physConsts = cfg.physics;
 
   // Détection terrain via collision.js partagé
-  const terrain = checkTerrain(state.position, map.blocks, blockScale, state.elevation);
+  const terrain = checkTerrain(state.position, map.blocks, blockScale, state.elevation, null, bounds);
 
   // Effets de terrain
   if (terrain) {
@@ -314,12 +353,15 @@ function _tickJoueur(ps, map, blockScale, dt, cfg) {
                  : terrain?.softTerrain === 'sticky' ? 0.5
                  : 1.0;
 
-  // Stats normalisées pour le pipeline de forces
+  // Stats normalisées pour le pipeline de forces.
+  // Les multiplicateurs de pouvoir s'appliquent ici, sur une valeur reconstruite
+  // à chaque tick — jamais sur ps.vehicleStats, qui resterait gonflé à vie.
   const vs = cfg.vehicleStats;
+  const pw = powerEffects ?? { speedMul: 1, gripMul: 1, accelMul: 1 };
   const statsNorm = {
-    speed_stat: (ps.vehicleStats.speed / vs.baseSpeed) * vmaxMult,
-    grip_stat:  ps.vehicleStats.grip   / vs.baseGrip,
-    accel_stat: ps.vehicleStats.accel  / vs.baseAccel,
+    speed_stat: (ps.vehicleStats.speed / vs.baseSpeed) * vmaxMult * pw.speedMul,
+    grip_stat:  (ps.vehicleStats.grip  / vs.baseGrip)  * pw.gripMul,
+    accel_stat: (ps.vehicleStats.accel / vs.baseAccel) * pw.accelMul,
   };
 
   // Throttle/steering depuis inputs
@@ -334,7 +376,7 @@ function _tickJoueur(ps, map, blockScale, dt, cfg) {
       const velocityBefore = { x: state.velocity.x, z: state.velocity.z };
 
       const bounced = applyBounce(
-        state.velocity, terrain.pushBack, physConsts.restitution ?? 0.5
+        state.velocity, terrain.pushBack, physConsts.restitution ?? 0.5, physConsts
       );
       state.velocity.x = bounced.x;
       state.velocity.z = bounced.z;
@@ -352,12 +394,28 @@ function _tickJoueur(ps, map, blockScale, dt, cfg) {
       state.velocity.x *= 0.92;
       state.velocity.z *= 0.92;
       state.speed = Math.sqrt(state.velocity.x ** 2 + state.velocity.z ** 2);
+
+      // ---- Orange — Bouclier : il encaisse avant le véhicule ----
+      // checkDamage était importé côté serveur sans jamais être appelé. Le
+      // bouclier s'use ici, et une fois vidé il est perdu pour la partie.
+      // La perte de voxels, elle, reste locale au client (prd_pouvoirs.md §7).
+      if (ps.powerState?.shield?.active) {
+        const nPush = Math.hypot(terrain.pushBack.x, terrain.pushBack.z) || 1;
+        const dmg = checkDamage(velocityBefore, state.velocity, {
+          x: terrain.pushBack.x / nPush,
+          z: terrain.pushBack.z / nPush,
+        }, state.position);
+        if (dmg.damaged) absorbDamage(ps.powerState, dmg.deltaSpeed);
+      }
     } else {
       state.velocity.x = 0;
       state.velocity.z = 0;
       state.speed      = 0;
     }
-    state.drifting = false;
+    // Un choc annule la charge de dérapage : pas de récompense pour une glisse
+    // qui finit dans un mur.
+    state.drifting  = false;
+    state.driftTime = 0;
   } else {
     // Pas de collision (ou auto-reverse actif)
     if (isAutoReversing && terrain?.hardCollision && terrain.pushBack) {
@@ -366,23 +424,47 @@ function _tickJoueur(ps, map, blockScale, dt, cfg) {
     }
 
     const dec       = decompose(state.velocity, state.angle);
-    const driftInfo = detectDrift(dec, physConsts, statsNorm, surfaceGrip);
+    const driftInfo = detectDrift(dec, physConsts, statsNorm, surfaceGrip, state.drifting);
     state.drifting  = driftInfo.is_drifting;
 
     const newV = computeForces(
-      state, { throttle }, statsNorm, dt, physConsts, driftInfo.current_grip
+      state, { throttle }, statsNorm, dt, physConsts, driftInfo.lateralGrip
     );
     state.velocity.x = newV.x;
     state.velocity.z = newV.z;
 
-    const steeringEff = inputs.steering;
-    const turn_rate   = computeTurnRate(steeringEff, dec, driftInfo.is_drifting, physConsts);
+    const steeringEff = rampSteering(state, inputs.steering, dt, physConsts);
+    const turn_rate   = computeTurnRate(steeringEff, dec, driftInfo, physConsts);
     state.angle      += turn_rate * dt;
 
     state.position.x += state.velocity.x * dt;
     state.position.z += state.velocity.z * dt;
     state.speed       = driftInfo.v_speed;
+
+    // Récompense de sortie de glisse (façon mini-turbo)
+    tickDriftCharge(state, dt, physConsts);
   }
+}
+
+// ---- Sérialisation des pouvoirs pour game:state ----
+
+// Compact : null la plupart des ticks, donc rien sur le fil tant qu'aucun
+// pouvoir n'agit sur ce joueur.
+function _payloadEffets(fx) {
+  if (!fx) return null;
+  const types = [...new Set(fx.sources.map(s => s.effect))];
+  return {
+    speedMul: fx.speedMul,
+    gripMul:  fx.gripMul,
+    accelMul: fx.accelMul,
+    types,
+  };
+}
+
+function _payloadBouclier(powerState) {
+  const sh = powerState?.shield;
+  if (!sh) return null;
+  return { hp: sh.hp, hpMax: sh.hpMax, active: sh.active };
 }
 
 // ---- Cohésion ----

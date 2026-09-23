@@ -43,6 +43,10 @@ const OFFSET_X = 3.5;
 const OFFSET_Y = 1.5;
 const OFFSET_Z = 1.5;
 
+// Hauteur du pivot de roulis sous l'origine du véhicule, à peu près à l'essieu
+// (les roues sont à -1.8). La caisse bascule autour de cette ligne.
+const ROLL_PIVOT = 1.8;
+
 let _onDebugResult = null;
 
 /**
@@ -53,17 +57,27 @@ let _onDebugResult = null;
 export function buildVehicleGroup(vehicle) {
   const { grid, wheelPositions } = vehicle;
   const group = new THREE.Group();
+
+  // La caisse est un sous-groupe distinct : elle seule s'incline sur la
+  // suspension, les roues restent plaquées au sol. Son origine est descendue à
+  // hauteur d'essieu pour que l'inclinaison se lise comme du roulis de caisse et
+  // non comme une rotation autour du milieu du véhicule.
+  const caisse = new THREE.Group();
+  caisse.position.y = -ROLL_PIVOT;
+  group.add(caisse);
+
   let nbVoxels = 0;
 
-  // Voxels
+  // Voxels — décalés de ROLL_PIVOT pour compenser la descente de la caisse :
+  // la position finale dans le monde est inchangée, seul le pivot bouge.
   for (let x = 0; x < 8; x++) {
     for (let z = 0; z < 4; z++) {
       for (let y = 0; y < 4; y++) {
         const v = grid[x]?.[z]?.[y];
         if (!v) continue;
         const mesh = new THREE.Mesh(_geoVoxel, _getMaterial(v.color));
-        mesh.position.set(x - OFFSET_X, y - OFFSET_Y, z - OFFSET_Z);
-        group.add(mesh);
+        mesh.position.set(x - OFFSET_X, y - OFFSET_Y + ROLL_PIVOT, z - OFFSET_Z);
+        caisse.add(mesh);
         nbVoxels++;
       }
     }
@@ -76,6 +90,9 @@ export function buildVehicleGroup(vehicle) {
     mesh.position.set(w.x - OFFSET_X, w.y - OFFSET_Y, w.z - OFFSET_Z + lateralOffset);
     group.add(mesh);
   }
+
+  group.userData.caisse = caisse;
+  group.userData.susp   = { roll: 0, rollVel: 0 };
 
   console.log('[voxel/renderer]', nbVoxels, 'voxels +', wheelPositions.length, 'roues');
 
@@ -93,34 +110,55 @@ export function disposeVehicleGroup(group) {
   group.clear();
 }
 
-// ---- Roll visuel en dérapage (E03-S13) ----
+// ---- Roulis de caisse sur suspension ----
 
 /**
- * Applique le roll latéral du véhicule en dérapage.
- * À appeler chaque frame après avoir mis à jour rotation.y.
+ * Incline la caisse sur sa suspension. Les roues ne bougent pas.
+ *
+ * Deux changements par rapport à la version précédente, tirés de l'observation
+ * de PAKO :
+ *   - seule la caisse bascule (sous-groupe créé par buildVehicleGroup), les
+ *     roues restent plaquées au sol ;
+ *   - l'inclinaison suit un ressort amorti au lieu d'un lerp vers une cible
+ *     binaire. C'est le dépassement du ressort qui donne la sensation de masse,
+ *     et une voiture qui tourne fort sans déraper penche déjà — l'ancienne
+ *     version ne réagissait qu'une fois le drapeau `drifting` levé.
+ *
+ * Cette fonction ne touche plus à la rotation du groupe parent : le tangage
+ * (décollage, chute) y est géré par la page appelante, et les deux se
+ * disputaient la même propriété à chaque frame.
  *
  * L'axe dépend de l'orientation du mesh :
  *  - axis='z' (défaut) : pages où rotation.y = angle - PI/2 (véhicule face +Z)
- *    → rollTarget = -sign(vLateral) × 0.25 sur rotation.z
- *  - axis='x' : pages où rotation.y = -angle (véhicule face +X, convention test-solo)
- *    → rollTarget = +sign(vLateral) × 0.25 sur rotation.x
+ *  - axis='x' : pages où rotation.y = -angle (véhicule face +X, test-solo)
  *
- * @param {THREE.Group} group    — groupe voxel du véhicule
- * @param {boolean}     drifting — état de dérapage courant
+ * @param {THREE.Group} group    — groupe véhicule issu de buildVehicleGroup
  * @param {number}      vLateral — vitesse latérale (v_lateral de decompose())
+ * @param {number}      dt       — deltaTime en secondes
  * @param {string}      axis     — 'z' (défaut) ou 'x'
+ * @param {object}      [consts] — /config/gameplay.json → physics
  */
-export function applyRoll(group, drifting, vLateral, axis = 'z') {
-  if (axis === 'x') {
-    const rollTarget = drifting ? Math.sign(vLateral) * 0.25 : 0;
-    group.rotation.x = THREE.MathUtils.lerp(group.rotation.x, rollTarget, 0.12);
-    // Annule toute valeur résiduelle sur z (évite le pitch hérité d'un état précédent)
-    group.rotation.z = THREE.MathUtils.lerp(group.rotation.z, 0, 0.2);
-  } else {
-    const rollTarget = drifting ? -Math.sign(vLateral) * 0.25 : 0;
-    group.rotation.z = THREE.MathUtils.lerp(group.rotation.z, rollTarget, 0.12);
-    group.rotation.x = THREE.MathUtils.lerp(group.rotation.x, 0, 0.2);
-  }
+export function applyRoll(group, vLateral, dt, axis = 'z', consts = null) {
+  const caisse = group.userData.caisse;
+  const susp   = group.userData.susp;
+  const cfg    = consts ?? {};
+
+  const gain = cfg.rollGain      ?? 0.05;
+  const maxi = cfg.rollMax       ?? 0.30;
+  const k    = cfg.rollStiffness ?? 90;
+  const c    = cfg.rollDamping   ?? 9;
+
+  const signe = axis === 'x' ? 1 : -1;
+  const cible = Math.max(-maxi, Math.min(maxi, signe * vLateral * gain));
+
+  // Ressort amorti explicite. Le pas est borné : sur une frame longue, intégrer
+  // un ressort raide en Euler diverge et la caisse part en vrille.
+  const pas = Math.min(dt, 0.033);
+  susp.rollVel += (-k * (susp.roll - cible) - c * susp.rollVel) * pas;
+  susp.roll    += susp.rollVel * pas;
+
+  if (axis === 'x') caisse.rotation.x = susp.roll;
+  else              caisse.rotation.z = susp.roll;
 }
 
 /**
@@ -226,7 +264,15 @@ export function createPreviewScene(canvas) {
   });
 
   function setGroup(group) {
-    if (_group) threeScene.remove(_group);
+    // Libère l'ancien : l'aperçu est reconstruit à chaque perte de voxels,
+    // sans ça chaque choc laisserait ses géométries sur le GPU.
+    if (_group) {
+      threeScene.remove(_group);
+      _group.traverse(o => {
+        o.geometry?.dispose();
+        o.material?.dispose();
+      });
+    }
     _group = group;
     threeScene.add(_group);
   }

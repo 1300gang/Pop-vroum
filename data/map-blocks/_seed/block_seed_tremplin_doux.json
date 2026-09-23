@@ -1,13 +1,13 @@
 {
-  "id": "block_seed_ramp",
-  "name": "Rampe",
-  "createdAt": "2026-04-30T00:00:00Z",
+  "id": "block_seed_tremplin_doux",
+  "name": "Tremplin doux",
+  "createdAt": "2026-09-21T00:00:00Z",
   "atelier": "_seed",
   "exits": [
     "N",
     "S"
   ],
-  "note": "Montée continue puis palier, voies latérales plates.",
+  "note": "Rampe longue : décollage progressif, grande portée. Deux voies plates de part et d'autre : le saut est optionnel et le bloc reste franchissable dans les deux sens.",
   "grid": [
     [
       "dur",
@@ -33,16 +33,26 @@
       "dur",
       "dur",
       null,
+      null,
+      null,
+      null,
+      "dur",
+      "dur"
+    ],
+    [
+      "dur",
+      "dur",
+      null,
       {
         "type": "rampe_pente",
         "direction": "N",
-        "elevation_start": 1.0,
+        "elevation_start": 0.667,
         "elevation_end": 1.0
       },
       {
         "type": "rampe_pente",
         "direction": "N",
-        "elevation_start": 1.0,
+        "elevation_start": 0.667,
         "elevation_end": 1.0
       },
       null,
@@ -56,54 +66,14 @@
       {
         "type": "rampe_pente",
         "direction": "N",
-        "elevation_start": 0.75,
-        "elevation_end": 1.0
+        "elevation_start": 0.333,
+        "elevation_end": 0.667
       },
       {
         "type": "rampe_pente",
         "direction": "N",
-        "elevation_start": 0.75,
-        "elevation_end": 1.0
-      },
-      null,
-      "dur",
-      "dur"
-    ],
-    [
-      "dur",
-      "dur",
-      null,
-      {
-        "type": "rampe_pente",
-        "direction": "N",
-        "elevation_start": 0.5,
-        "elevation_end": 0.75
-      },
-      {
-        "type": "rampe_pente",
-        "direction": "N",
-        "elevation_start": 0.5,
-        "elevation_end": 0.75
-      },
-      null,
-      "dur",
-      "dur"
-    ],
-    [
-      "dur",
-      "dur",
-      null,
-      {
-        "type": "rampe_pente",
-        "direction": "N",
-        "elevation_start": 0.25,
-        "elevation_end": 0.5
-      },
-      {
-        "type": "rampe_pente",
-        "direction": "N",
-        "elevation_start": 0.25,
-        "elevation_end": 0.5
+        "elevation_start": 0.333,
+        "elevation_end": 0.667
       },
       null,
       "dur",
@@ -117,14 +87,24 @@
         "type": "rampe_pente",
         "direction": "N",
         "elevation_start": 0.0,
-        "elevation_end": 0.25
+        "elevation_end": 0.333
       },
       {
         "type": "rampe_pente",
         "direction": "N",
         "elevation_start": 0.0,
-        "elevation_end": 0.25
+        "elevation_end": 0.333
       },
+      null,
+      "dur",
+      "dur"
+    ],
+    [
+      "dur",
+      "dur",
+      null,
+      null,
+      null,
       null,
       "dur",
       "dur"

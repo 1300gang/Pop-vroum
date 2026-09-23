@@ -2,6 +2,12 @@
 // Vérifie l'intégration map-generator + controls + physics + camera + skid,
 // avec une voiture pilotée automatiquement de manière aléatoire (par défaut)
 // pour valider que la map est traversable du départ à l'arrivée.
+//
+// Conduite : modèle vectoriel V5 (game feel calibré), même enchaînement que
+// server/game-loop.js — decompose → detectDrift → computeForces → rampSteering
+// → computeTurnRate. La page tournait sur l'ancien physics.tick() scalaire, qui
+// n'existe plus : convention d'angle différente (forward = sin/cos) et dérapage
+// qui ne se déclenchait jamais.
 
 import * as THREE from '../lib/three.module.js';
 import * as controls      from '../modules/game/controls.js';
@@ -19,15 +25,19 @@ const CELL_TYPES = {
   sticky:   { color: 0x88ff66, height: 0.05 },  // collant
 };
 
-// Stats véhicule par défaut (pas de scan en mode test).
-const STATS_TEST = { speed: 0, grip: 1.2, accel: 2.5 };
+// Stats véhicule par défaut (pas de scan en mode test) — valeurs brutes façon
+// voxel/stats.js, normalisées ensuite pour le pipeline de forces.
+const STATS_TEST = { speed: 12.0, grip: 2.0, accel: 5.0 };
 
 // Pouvoirs de test : un peu de chaque pour vérifier les visuels.
 const POWERS_TEST = { aspiration: 2, phares: 2, sillage: 2, shield: 2, attraction: 0, heal: 0 };
 
 const CAR_ID = 'test-solo';
 let _scene, _renderer, _cam, _carMesh, _carState, _map, _mapGroup, _powersHandle;
-let _pool        = [];
+let _poolData    = null;
+let _physConsts  = null;
+let _statsNorm   = null;
+let _winRadius   = 4.0;
 let _aiActive    = true;
 let _aiPlan      = { steering: 0, until: 0 };
 let _arrivee     = false;
@@ -59,16 +69,27 @@ async function init() {
   controls.init(canvas);
   skid.init(_scene);
 
-  // Voiture (cube stub — pas de voxel-vehicle scanné)
-  const carGeo = new THREE.BoxGeometry(1.5, 1.0, 2.0);
+  const cfg   = await fetch('/config/gameplay.json').then(r => r.json());
+  _physConsts = cfg.physics;
+  _winRadius  = cfg.solo?.WIN_RADIUS ?? 4.0;
+  const vs    = cfg.vehicleStats;
+  _statsNorm  = {
+    speed_stat: STATS_TEST.speed / vs.baseSpeed,
+    grip_stat:  STATS_TEST.grip  / vs.baseGrip,
+    accel_stat: STATS_TEST.accel / vs.baseAccel,
+  };
+
+  // Voiture (cube stub — pas de voxel-vehicle scanné). Long axe sur X : à angle 0
+  // le véhicule pointe vers +X.
+  const carGeo = new THREE.BoxGeometry(2.0, 1.0, 1.5);
   const carMat = new THREE.MeshStandardMaterial({ color: 0xff5e7a });
   _carMesh = new THREE.Mesh(carGeo, carMat);
   _carMesh.position.y = 0.5;
   _scene.add(_carMesh);
 
   // Pool de blocs
-  _pool = await loadPool();
-  console.log(`[test-game] ${_pool.length} blocs chargés`);
+  _poolData = await loadPool();
+  console.log(`[test-game] ${_poolData.pool.length} blocs chargés`);
 
   // 1ʳᵉ génération
   await regenererMap();
@@ -98,8 +119,8 @@ async function regenererMap() {
     });
   }
 
-  _map = await generate(_pool, 1);
-  $('map-name').textContent = `${_map.length} blocs (${_map.blocks.map((b) => b.name).join(' → ')})`;
+  _map = await generate(_poolData);
+  $('map-name').textContent = `${_map.blocks.length} blocs (${_map.gridCols}×${_map.gridRows})`;
 
   _mapGroup = _construireMeshMap(_map);
   _scene.add(_mapGroup);
@@ -166,24 +187,61 @@ function _construireMeshMap(map) {
 // ---- Pilote auto aléatoire ----
 // Plan : tient un cap pendant un délai aléatoire (300-1200ms),
 // alterne tout droit / virage léger gauche / virage léger droite.
-// Si la voiture sort latéralement de la map, force un virage de retour.
+// Près du bord de la map, on reprend la main et on braque vers l'arrivée.
 function _aiInputs(now) {
   if (now > _aiPlan.until) {
     const r = Math.random();
-    let s = 0;
-    if      (r < 0.5) s =  0;
-    else if (r < 0.75) s =  1;
-    else               s = -1;
+    const s = r < 0.5 ? 0 : r < 0.75 ? 1 : -1;
     _aiPlan = { steering: s, until: now + 300 + Math.random() * 900 };
   }
 
-  // Correction si on sort de la voie (largeur = BLOCK_SIZE)
-  const x = _carState.position.x;
-  let s = _aiPlan.steering;
-  if (x < 1.5)               s =  1;  // colle au mur gauche → tourne à droite
-  else if (x > BLOCK_SIZE - 1.5) s = -1;  // colle au mur droit → tourne à gauche
+  const { x, z }          = _carState.position;
+  const { width, depth }  = _map.worldExtent;
+  const auBord = x < 1.5 || z < 1.5 || x > width - 1.5 || z > depth - 1.5;
 
-  return { steering: s, braking: 0 };
+  return {
+    steering: auBord ? _capVers(_map.finishPosition) : _aiPlan.steering,
+    throttle: 1,
+  };
+}
+
+// Braquage (-1 / 0 / 1) qui ramène le nez vers une cible.
+function _capVers(cible) {
+  const vise = Math.atan2(cible.z - _carState.position.z, cible.x - _carState.position.x);
+  let ecart  = vise - _carState.angle;
+  while (ecart >  Math.PI) ecart -= 2 * Math.PI;
+  while (ecart < -Math.PI) ecart += 2 * Math.PI;
+  return Math.abs(ecart) < 0.15 ? 0 : Math.sign(ecart);
+}
+
+function _inputsManuels() {
+  const i = controls.getInputs();
+  return {
+    steering: i.steering,
+    throttle: i.reversing ? -1 : i.braking ? -0.8 : 1,
+  };
+}
+
+// Une frame de conduite — même enchaînement que server/game-loop.js.
+function _tickConduite(inputs, dt) {
+  const dec       = physics.decompose(_carState.velocity, _carState.angle);
+  const driftInfo = physics.detectDrift(dec, _physConsts, _statsNorm, 1.0, _carState.drifting);
+  _carState.drifting = driftInfo.is_drifting;
+
+  const newV = physics.computeForces(
+    _carState, { throttle: inputs.throttle }, _statsNorm, dt, _physConsts, driftInfo.lateralGrip
+  );
+  _carState.velocity.x = newV.x;
+  _carState.velocity.z = newV.z;
+
+  const steeringEff = physics.rampSteering(_carState, inputs.steering, dt, _physConsts);
+  _carState.angle  += physics.computeTurnRate(steeringEff, dec, driftInfo, _physConsts) * dt;
+
+  _carState.position.x += _carState.velocity.x * dt;
+  _carState.position.z += _carState.velocity.z * dt;
+  _carState.speed       = driftInfo.v_speed;
+
+  physics.tickDriftCharge(_carState, dt, _physConsts);
 }
 
 function boucle(now) {
@@ -191,23 +249,25 @@ function boucle(now) {
   _last = now;
 
   if (_carState && _map) {
-    const inputs = _aiActive ? _aiInputs(now) : controls.getInputs();
-    physics.tick(_carState, STATS_TEST, inputs, dt);
+    const inputs = _aiActive ? _aiInputs(now) : _inputsManuels();
+    _tickConduite(inputs, dt);
 
     // Skid : émettre depuis l'arrière du véhicule si dérapage (E03-S11)
     if (_carState.drifting && _carState.speed > 0.5) {
-      const arriereX = _carState.position.x - Math.sin(_carState.angle) * 1.0;
-      const arriereZ = _carState.position.z - Math.cos(_carState.angle) * 1.0;
-      // Page legacy : velocity = angle du véhicule (pas de vrai vecteur velocity ici)
-      const fakeVelocity = { x: Math.sin(_carState.angle) * _carState.speed,
-                             z: Math.cos(_carState.angle) * _carState.speed };
-      const v_lateral = Math.abs(inputs.steering) * _carState.speed * 0.5;
-      skid.emit({ x: arriereX, z: arriereZ }, fakeVelocity, v_lateral);
+      const dec = physics.decompose(_carState.velocity, _carState.angle);
+      const spd = Math.max(0.01, _carState.speed);
+      const nx  = _carState.velocity.x / spd;
+      const nz  = _carState.velocity.z / spd;
+      skid.emit(
+        { x: _carState.position.x - nx * 0.6, z: _carState.position.z - nz * 0.6 },
+        _carState.velocity,
+        Math.abs(dec.v_lateral),
+      );
     }
     skid.update();
 
     _carMesh.position.set(_carState.position.x, 0.5, _carState.position.z);
-    _carMesh.rotation.y = _carState.angle;
+    _carMesh.rotation.y = -_carState.angle;
 
     // Pouvoirs : update visuel + détection
     const vehicleView = [{
@@ -226,7 +286,9 @@ function boucle(now) {
     $('pos').textContent   = `${_carState.position.x.toFixed(1)}, ${_carState.position.z.toFixed(1)}`;
 
     // Détection arrivée
-    if (!_arrivee && _carState.position.z >= _map.finishPosition.z - 0.5) {
+    const dxFin = _carState.position.x - _map.finishPosition.x;
+    const dzFin = _carState.position.z - _map.finishPosition.z;
+    if (!_arrivee && Math.hypot(dxFin, dzFin) <= _winRadius) {
       _arrivee = true;
       $('banner').style.display = 'block';
       // Régénère automatiquement après 2.5s pour boucler le test

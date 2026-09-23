@@ -11,7 +11,9 @@ import * as GameLoop                from './server/game-loop.js';
 import { registerAdminRoutes }      from './server/admin-routes.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const PORT      = 3000;
+// 3000 par défaut (l'adresse que l'animateur·trice donne aux tablettes en atelier),
+// surchargeable par la variable d'environnement pour faire tourner deux instances.
+const PORT      = Number(process.env.PORT) || 3000;
 
 const app        = express();
 const httpServer = createServer(app);

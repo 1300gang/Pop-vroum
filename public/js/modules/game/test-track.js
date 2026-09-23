@@ -16,13 +16,17 @@ const TAILLE           = 8;
 const LIGNES_OUVERTES  = [2, 3, 4, 5];   // couloir central, murs de part et d'autre
 const GX_RAMPE         = 2;              // colonne où commence chaque tremplin
 
-// map-loader fait pivoter toute grille de 90° CW au chargement (convention du
-// projet : les blocs sont écrits « avant rotation »). On écrit donc la piste
-// telle qu'on veut la voir, puis on la pivote de 90° CCW pour que les deux
-// rotations s'annulent.
+// Depuis le 22/09/2026 map-loader ne pivote plus rien : la rotation se fait une
+// seule fois sur le pool, à son chargement. Les pistes construites ici n'entrent
+// pas par le pool, elles s'écrivent donc directement dans le repère du jeu et
+// _rotate90CCW n'a plus lieu d'être — elle décalait la piste d'un quart de tour.
 const _DIR_CCW = { N: 'O', O: 'S', S: 'E', E: 'N' };
 
-function _rotate90CCW(grid, remplissage = null) {
+function _rotate90CCW(grid, _remplissage = null) {
+  return grid; // plus de rotation en aval : la piste est déjà dans le bon repère
+}
+
+function _rotate90CCW_ancien(grid, remplissage = null) {
   const n      = grid.length;
   const result = Array.from({ length: n }, () => Array(n).fill(remplissage));
 
@@ -294,5 +298,91 @@ export function construirePisteEffets(blockScale = 2) {
       worldExtent: { width: largeurTotale, depth: tailleBloc },
     },
     reperes,
+  };
+}
+
+// ---- Arène des pouvoirs (test-v6-pouvoirs.html) ----
+//
+// Les pouvoirs sont altruistes : ils ne se jugent qu'à plusieurs, et seulement
+// si on voit ce qui se passe. Un labyrinthe procédural cache tout — d'où une
+// arène ouverte, avec juste assez de piliers pour éprouver le double tranchant
+// (« un véhicule trop rouge pousse ses coéquipier·ères dans les murs »).
+
+// Piliers 2×2 posés dans chaque bloc, décalés d'un bloc à l'autre pour ne pas
+// former de couloir régulier. Coordonnées en cellules dans la grille 8×8.
+const _PILIERS = [
+  [[2, 2]],
+  [[5, 4]],
+  [[3, 5], [6, 1]],
+  [],
+];
+
+/**
+ * Construit une arène carrée et ouverte pour le calibrage des pouvoirs.
+ *
+ * @param {number} blockScale — unités monde par cellule
+ * @param {number} cote       — côté de l'arène en blocs
+ * @returns {{ map: object }}
+ */
+export function construireArenePouvoirs(blockScale = 2, cote = 3) {
+  const tailleBloc = TAILLE * blockScale;
+  const blocks     = [];
+
+  for (let col = 0; col < cote; col++) {
+    for (let row = 0; row < cote; row++) {
+      const grid = Array.from({ length: TAILLE }, () => Array(TAILLE).fill(null));
+
+      // Pas de pilier dans le bloc de départ : on veut de l'espace pour lancer
+      const estDepart = col === 0 && row === Math.floor(cote / 2);
+      if (!estDepart) {
+        for (const [gz, gx] of _PILIERS[(col + row) % _PILIERS.length]) {
+          grid[gz][gx]         = 'dur';
+          grid[gz][gx + 1]     = 'dur';
+          grid[gz + 1][gx]     = 'dur';
+          grid[gz + 1][gx + 1] = 'dur';
+        }
+      }
+
+      blocks.push({
+        blockId:       `arene_${col}_${row}`,
+        name:          `Arène ${col},${row}`,
+        col, row,
+        position:      [col * tailleBloc, row * tailleBloc],
+        grid:          _rotate90CCW(grid, null),
+        elevationGrid: _rotate90CCW(_grilleZero(), 0),
+      });
+    }
+  }
+
+  const rowCentre = Math.floor(cote / 2);
+  const centreZ   = rowCentre * tailleBloc + tailleBloc / 2;
+  const largeur   = cote * tailleBloc;
+  const depart    = { x: blockScale * 2, z: centreZ, angle: 0 };
+
+  // Cinq points de spawn en éventail : le joueur et jusqu'à quatre bots
+  const spawnPositions = [0, 1.8, -1.8, 3.6, -3.6].map(dz => ({
+    x: depart.x, z: centreZ + dz, angle: 0,
+  }));
+
+  return {
+    map: {
+      id:       'arene_pouvoirs',
+      gridCols: cote,
+      gridRows: cote,
+      blockScale,
+      blocks,
+      startPosition:  depart,
+      finishPosition: { x: largeur - blockScale * 2, z: centreZ },
+      entry: {
+        blockCol: 0, blockRow: rowCentre,
+        worldCenter: { x: tailleBloc / 2, z: centreZ },
+        spawnPositions,
+      },
+      exit: {
+        blockCol: cote - 1, blockRow: rowCentre,
+        worldCenter: { x: largeur - tailleBloc / 2, z: centreZ },
+      },
+      worldExtent: { width: largeur, depth: cote * tailleBloc },
+    },
   };
 }

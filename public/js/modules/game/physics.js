@@ -60,136 +60,344 @@ export function decompose(velocity, angle) {
   return { v_forward, v_lateral, forward, right };
 }
 
-// ---- Pipeline de forces vectoriel (E03-S03) ----
+// ---- Courbe de pneu et bandes de stats ----
 
 /**
- * Calcule la nouvelle velocity après application des trois forces du modèle :
- *   F_engine  = forward × throttle × accel_stat × engineBase
- *   F_lateral = -right  × v_lateral × grip_base × mass   (correction de glisse)
- *   F_drag    = -velocity × dragCoeff                     (frottement aérodynamique)
+ * Rendement d'adhérence en fonction de l'angle de dérive (courbe de pneu simplifiée).
  *
- * Intégration Euler : a = (F_engine + F_lateral + F_drag) / mass
- *                     velocity += a × dt
+ * Monte jusqu'à un pic à s = 1 (l'angle de dérive optimal), puis redescend
+ * doucement vers un plancher. C'est cette redescente progressive — au lieu d'une
+ * chute brutale — qui rend la glisse pilotable : passé le pic on perd de
+ * l'adhérence sans la perdre toute, donc la voiture se rattrape au lieu de partir
+ * en toupie. L'ancien modèle n'avait que deux états (collé / 20 % d'adhérence),
+ * d'où une conduite soit sur rails, soit ingérable.
+ *
+ * @param {number} s — angle de dérive normalisé (1 = pic)
+ * @param {number} tailFloor — adhérence résiduelle en glisse extrême
+ * @returns {number} rendement ∈ [0, 1]
+ */
+export function tireCurve(s, tailFloor = 0.55) {
+  if (s <= 0) return 0;
+  const forme = 2 * s / (1 + s * s);            // pic exactement à s = 1
+  return Math.max(forme, tailFloor * Math.min(1, s));
+}
+
+/**
+ * Ramène une stat brute issue du scan dans une bande utilisable.
+ *
+ * Les stats brutes ne sont pas bornées : une voiture très verte sort un grip_stat
+ * autour de 10, ce qui multipliait l'adhérence par dix et rendait tout équilibrage
+ * impossible. La saturation garde un écart lisible entre véhicules sans jamais
+ * devenir absurde.
+ *
+ * @param {number} brut — stat normalisée (1 = aucun voxel de cette couleur)
+ * @param {number} min — valeur pour un véhicule sans voxel de la couleur
+ * @param {number} max — asymptote pour un véhicule saturé
+ * @param {number} demi — valeur brute qui atteint la moitié de la bande
+ */
+export function bandeStat(brut, min, max, demi = 3) {
+  const v = Math.max(0, (brut ?? 1) - 1);
+  return min + (max - min) * (v / (v + demi));
+}
+
+// ---- Pipeline de forces vectoriel ----
+
+/**
+ * Calcule la nouvelle velocity pour une frame.
+ *
+ * Trois accélérations, toutes exprimées directement en u/s². La masse a disparu :
+ * elle se simplifiait déjà des deux côtés dans l'ancien modèle, la garder ne
+ * faisait qu'obscurcir le réglage.
+ *   - moteur   : le long de forward
+ *   - latérale : bornée par la courbe de pneu — c'est elle qui autorise la glisse
+ *   - traînée  : roulement constant + aéro quadratique
  *
  * Fonction pure — pas de side-effects, testable sans navigateur.
  *
  * @param {{ velocity: {x,z}, angle: number }} state
  * @param {{ throttle: number }}  inputs  — throttle ∈ [-1, 1]
- * @param {{ speed_stat: number, grip_stat: number, accel_stat: number }} stats — normalisés [0..1+]
+ * @param {{ speed_stat: number, grip_stat: number, accel_stat: number }} stats
  * @param {number} dt — deltaTime en secondes
- * @param {{ mass, engineBase, gripBase, dragCoeff, vmaxGlobal }} consts — depuis gameplay.json
- * @param {number} [current_grip] — override du grip (fourni par S05 en mode drift)
+ * @param {object} consts — /config/gameplay.json → physics
+ * @param {number|null} lateralGrip — adhérence latérale en u/s² (detectDrift.lateralGrip).
+ *                                    0 en vol, null = adhérence au pic.
  * @returns {{ x: number, z: number }} — nouvelle velocity
  */
-export function computeForces(state, inputs, stats, dt, consts, current_grip = null) {
-  const { mass, engineBase, gripBase, dragCoeff, vmaxGlobal } = consts;
-
+export function computeForces(state, inputs, stats, dt, consts, lateralGrip = null) {
   const { v_forward, v_lateral, forward, right } = decompose(state.velocity, state.angle);
+  const v_speed = Math.sqrt(state.velocity.x ** 2 + state.velocity.z ** 2);
 
-  // Stats → paramètres physiques (PRD §5)
-  const grip_base  = gripBase  * (stats.grip_stat  ?? 1.0);
-  const vmax       = vmaxGlobal * (0.6 + (stats.speed_stat ?? 1.0) * 0.4);
-  const accel_stat = stats.accel_stat ?? 1.0;
+  const vmax = consts.vmaxGlobal * bandeStat(
+    stats.speed_stat, consts.speedStatMin ?? 0.78, consts.speedStatMax ?? 1.3,
+  );
+  const accelMax = (consts.engineAccel ?? 16) * bandeStat(
+    stats.accel_stat, consts.accelStatMin ?? 0.7, consts.accelStatMax ?? 1.4,
+  );
 
-  // Grip actif : S05 passera current_grip en mode drift ; sinon grip de base
-  const grip = current_grip ?? grip_base;
-
-  // Throttle ∈ [-1, 1]
   const throttle = Math.max(-1, Math.min(1, inputs.throttle ?? 0));
 
-  // F_engine = forward × throttle × accel_stat × ENGINE_BASE
-  const Fex = forward.x * throttle * accel_stat * engineBase;
-  const Fez = forward.z * throttle * accel_stat * engineBase;
-
-  // F_lateral = -right × v_lateral × grip × mass  (S07 : réduit par transfert de poids)
-  const v_speed_local = Math.sqrt(v_forward ** 2 + v_lateral ** 2);
-  let grip_applied = grip;
-  if (v_speed_local > 3) {
-    if (throttle > 0.3)  grip_applied *= (1 - consts.accelGripTransfer * throttle);
-    if (throttle < -0.5) grip_applied *= (1 - consts.brakeGripTransfer * Math.abs(throttle));
+  // ---- Moteur ----
+  // Pas de plafond dur : c'est la traînée qui arrête la montée en vitesse (plus bas).
+  let aLong;
+  if (throttle >= 0) {
+    aLong = accelMax * throttle;
+  } else if (v_forward > 0.5) {
+    aLong = (consts.brakeAccel ?? 24) * throttle;      // throttle négatif = freinage franc
+  } else {
+    aLong = (consts.reverseAccel ?? 7) * throttle;     // puis marche arrière
   }
-  const Flx = -right.x * v_lateral * grip_applied * mass;
-  const Flz = -right.z * v_lateral * grip_applied * mass;
 
-  // F_drag = -velocity × dragCoeff
-  const Fdx = -state.velocity.x * dragCoeff;
-  const Fdz = -state.velocity.z * dragCoeff;
+  // ---- Adhérence latérale ----
+  let aLatMag = lateralGrip ?? (consts.gripAccel ?? 22);
+  // Transfert de poids : accélérer allège l'avant, freiner allège l'arrière.
+  if (v_speed > 3) {
+    if (throttle > 0.3)  aLatMag *= (1 - (consts.accelGripTransfer ?? 0.15) * throttle);
+    if (throttle < -0.5) aLatMag *= (1 - (consts.brakeGripTransfer ?? 0.20) * Math.abs(throttle));
+  }
+  // On ne peut pas effacer plus de glisse qu'il n'y en a : sans ce plafond, une
+  // adhérence forte inverserait le signe de v_lateral à chaque frame (tremblement).
+  const aLatDispo = Math.abs(v_lateral) / Math.max(dt, 1e-4);
+  const aLat      = -Math.sign(v_lateral) * Math.min(aLatMag, aLatDispo);
 
-  // Intégration Euler
-  const ax = (Fex + Flx + Fdx) / mass;
-  const az = (Fez + Flz + Fdz) / mass;
+  // ---- Traînée ----
+  // L'aéro est calée pour que la vitesse d'équilibre tombe exactement sur vmax :
+  // le stat de vitesse fixe donc le palier, le stat d'accélération le temps pour
+  // l'atteindre. Lâcher l'accélérateur ralentit vraiment, ce qui n'était pas le
+  // cas avant (la traînée valait 0,08 u/s², soit rien).
+  const rolling = consts.rollingResist ?? 1.6;
+  const aero    = Math.max(0, accelMax - rolling) / (vmax * vmax);
+  let aDragX = 0, aDragZ = 0;
+  if (v_speed > 0.01) {
+    const magnitude = Math.min(
+      rolling + aero * v_speed * v_speed,
+      v_speed / Math.max(dt, 1e-4),          // la traînée ne doit jamais inverser la vitesse
+    );
+    aDragX = -state.velocity.x / v_speed * magnitude;
+    aDragZ = -state.velocity.z / v_speed * magnitude;
+  }
 
-  let vx = state.velocity.x + ax * dt;
-  let vz = state.velocity.z + az * dt;
+  // ---- Intégration Euler ----
+  let vx = state.velocity.x + (forward.x * aLong + right.x * aLat + aDragX) * dt;
+  let vz = state.velocity.z + (forward.z * aLong + right.z * aLat + aDragZ) * dt;
 
-  // Plafonnement à vmax
-  const v_new = Math.sqrt(vx * vx + vz * vz);
-  if (v_new > vmax) {
-    const scale = vmax / v_new;
-    vx *= scale;
-    vz *= scale;
+  // Plafond de sécurité : la traînée fixe déjà le palier, ce clamp ne sert qu'en
+  // cas de cumul anormal (boost, pente descendante, rebond).
+  const plafond = vmax * (consts.vmaxOverhead ?? 1.25);
+  const v_new   = Math.sqrt(vx * vx + vz * vz);
+  if (v_new > plafond) {
+    vx *= plafond / v_new;
+    vz *= plafond / v_new;
   }
 
   return { x: vx, z: vz };
 }
 
-// ---- Détection drift et grip courant (E03-S05) ----
+// ---- Angle de dérive, adhérence courante et détection de drift ----
 
 /**
- * Détecte le dérapage et calcule le grip courant.
+ * Mesure l'angle de dérive et en déduit l'adhérence latérale disponible.
  *
- * drift_threshold = grip_base × 1.2 × (1 + v_speed/VMAX × 0.3)
- * is_drifting     = |v_lateral| > drift_threshold && v_speed > minDriftSpeed
- * current_grip    = is_drifting ? grip_base × driftGripMultiplier : grip_base
+ * L'angle de dérive (slip angle) est l'écart entre là où la voiture pointe et là
+ * où elle va réellement. C'est la grandeur juste pour ce modèle : bornée à 90° et
+ * indépendante de la vitesse, contrairement à l'ancien seuil qui comparait une
+ * vitesse latérale absolue à une valeur qu'elle n'atteignait jamais — le drift ne
+ * se déclenchait donc littéralement jamais.
+ *
+ * `is_drifting` ne pilote plus la physique (la courbe de pneu s'en charge en
+ * continu) : c'est devenu un simple drapeau d'affichage pour la fumée, les traces
+ * et l'inclinaison. Il a une hystérésis pour ne pas clignoter à la frontière.
  *
  * @param {{ v_forward: number, v_lateral: number }} dec — résultat de decompose()
- * @param {{ vmaxGlobal, gripBase, driftGripMultiplier, minDriftSpeed }} consts
+ * @param {object} consts — /config/gameplay.json → physics
  * @param {{ grip_stat: number }} stats
- * @param {number} [surface_grip=1.0] — multiplicateur de grip selon la surface (E03-S08)
- * @returns {{ is_drifting, current_grip, drift_threshold, v_speed }}
+ * @param {number} [surface_grip=1.0] — multiplicateur selon la surface (collant, boost)
+ * @param {boolean} [prevDrifting=false] — état de la frame précédente (hystérésis)
+ * @returns {{ is_drifting, slip, slipDeg, gripFactor, gripAccel, lateralGrip, v_speed, drift_threshold }}
  */
-export function detectDrift(dec, consts, stats, surface_grip = 1.0) {
+export function detectDrift(dec, consts, stats, surface_grip = 1.0, prevDrifting = false) {
   const { v_forward, v_lateral } = dec;
-  const v_speed    = Math.sqrt(v_forward ** 2 + v_lateral ** 2);
-  const grip_base  = consts.gripBase * (stats.grip_stat ?? 1.0) * surface_grip;
+  const v_speed = Math.sqrt(v_forward ** 2 + v_lateral ** 2);
 
-  const drift_threshold = grip_base * 1.2 * (1 + v_speed / consts.vmaxGlobal * 0.3);
+  // Le plancher sur v_forward évite un angle qui explose à l'arrêt ou juste après
+  // un rebond, là où la notion de dérive n'a pas de sens.
+  const slip    = v_speed < 0.05
+    ? 0
+    : Math.atan2(Math.abs(v_lateral), Math.max(Math.abs(v_forward), 0.5));
+  const slipDeg = slip * 180 / Math.PI;
 
-  const is_drifting = Math.abs(v_lateral) > drift_threshold
-                   && v_speed > consts.minDriftSpeed;
+  const peakDeg    = consts.slipPeakDeg ?? 10;
+  const gripFactor = tireCurve(slipDeg / peakDeg, consts.tireTailFloor ?? 0.55);
 
-  const current_grip = is_drifting
-    ? grip_base * consts.driftGripMultiplier
-    : grip_base;
+  const gripAccel = (consts.gripAccel ?? 22)
+    * bandeStat(stats.grip_stat, consts.gripStatMin ?? 0.75, consts.gripStatMax ?? 1.35)
+    * surface_grip;
 
-  return { is_drifting, current_grip, drift_threshold, v_speed };
+  const entree = consts.driftEnterDeg ?? 16;
+  const sortie = consts.driftExitDeg  ?? 9;
+  let is_drifting;
+  if (v_speed < (consts.minDriftSpeed ?? 3)) is_drifting = false;
+  else if (slipDeg > entree)                 is_drifting = true;
+  else if (slipDeg < sortie)                 is_drifting = false;
+  else                                       is_drifting = prevDrifting;
+
+  return {
+    is_drifting, slip, slipDeg, gripFactor, gripAccel,
+    lateralGrip: gripAccel * gripFactor,
+    v_speed,
+    drift_threshold: entree,
+  };
 }
 
-// ---- Turn rate avec oversteer en drift (E03-S06) ----
+// ---- Vitesse de rotation ----
 
 /**
- * Calcule le turn_rate avec amplification en dérapage.
+ * Calcule le turn_rate (vitesse de rotation du nez, en rad/s).
  *
- * Hors drift : turn_rate = steering × turnSpeed × clamp(|v_forward|/5, 0, 1)
- * En drift   : turn_rate ×= (1 + driftRotationBoost × |v_lateral|/v_speed)
+ * Trois effets se composent :
+ *   - montée    : on ne pivote pas sur place, l'autorité arrive avec la vitesse
+ *   - plafond d'adhérence : tourner le nez plus vite que ce que les pneus peuvent
+ *                 encaisser ne fait pas tourner la voiture, ça la met en travers.
+ *                 Le plafond vaut donc grosso modo adhérence / vitesse. Sans lui,
+ *                 braquer à fond à 27 u/s réclamait 94 u/s² pour 22 disponibles :
+ *                 la voiture partait à 88° de dérive en une demi-seconde.
+ *   - survirage : en glisse l'arrière pivote un peu plus, de façon continue et
+ *                 bornée. L'ancien bonus binaire ×1.8 se combinait à une chute
+ *                 d'adhérence à 20 % : la glisse s'auto-entretenait jusqu'à 90°.
+ *
+ * Effet de bord voulu : une voiture très adhérente peut braquer plus fort à haute
+ * vitesse qu'une savonnette. La différence de pilotage entre véhicules découle du
+ * modèle au lieu d'être plaquée dessus.
  *
  * @param {number} steering — entrée virage ∈ [-1, 1]
  * @param {{ v_forward: number, v_lateral: number }} dec
- * @param {boolean} is_drifting
- * @param {{ turnSpeed: number, driftRotationBoost: number }} consts
+ * @param {{ slip: number, gripAccel: number }} driftInfo — résultat de detectDrift()
+ * @param {object} consts — /config/gameplay.json → physics
  * @returns {number} — turn_rate en rad/s
  */
-export function computeTurnRate(steering, dec, is_drifting, consts) {
+export function computeTurnRate(steering, dec, driftInfo, consts) {
   const { v_forward, v_lateral } = dec;
-  const v_speed   = Math.max(0.01, Math.sqrt(v_forward ** 2 + v_lateral ** 2));
-  const clamp     = Math.min(1, Math.max(0, Math.abs(v_forward) / 5));
-  let turn_rate   = steering * consts.turnSpeed * clamp;
+  const v_speed = Math.max(0.01, Math.sqrt(v_forward ** 2 + v_lateral ** 2));
 
-  if (is_drifting) {
-    turn_rate *= (1 + consts.driftRotationBoost * Math.abs(v_lateral) / v_speed);
+  const vRef      = Math.max(v_speed, consts.turnGripMinSpeed ?? 4);
+  const gripAccel = driftInfo?.gripAccel ?? (consts.gripAccel ?? 22);
+
+  // L'autorité de braquage vient du conducteur, pas des pneus : c'est une
+  // accélération latérale demandée, convertie en vitesse de rotation. L'indexer
+  // sur l'adhérence inversait le contraste entre véhicules (la voiture la plus
+  // adhérente dérivait le plus, parce qu'elle pouvait braquer plus fort).
+  const omegaMax = Math.min(consts.turnSpeed ?? 3.5, (consts.turnLatAccel ?? 30) / vRef);
+
+  const montee  = Math.min(1, Math.abs(v_forward) / (consts.turnRampSpeed ?? 5));
+
+  const slip    = driftInfo?.slip ?? 0;
+  const slipDeg = slip * 180 / Math.PI;
+
+  // Survirage : volontairement faible. C'est le seul terme déstabilisant, il doit
+  // rester sous l'amortissement sinon la glisse s'auto-entretient jusqu'au tête-à-queue.
+  const survire = 1 + (consts.driftRotationBoost ?? 0.25)
+                    * Math.min(1, slipDeg / 45);
+
+  // Moment stabilisant des pneus arrière : ils ramènent le nez vers la trajectoire
+  // réelle, d'autant plus fort que la dérive est grande. C'est lui qui fait qu'une
+  // voiture prend un angle de glisse et s'y tient au lieu de partir en toupie.
+  // Il est indexé sur l'adhérence disponible — une voiture adhérente se recale vite,
+  // une savonnette reste en travers — mais surtout PAS sur gripFactor : celui-ci
+  // chute quand la dérive monte, l'amortissement s'effondrait donc au moment précis
+  // où il devenait nécessaire, ce qui recréait la bistabilité qu'on vient de retirer.
+  const stab = Math.sign(v_lateral) * (consts.yawDamping ?? 2.0)
+             * (gripAccel / vRef)
+             * Math.min(1, slipDeg / (consts.yawDampSlipDeg ?? 40));
+
+  return steering * omegaMax * montee * survire + stab;
+}
+
+// ---- Charge de dérapage et boost de sortie ----
+
+/**
+ * Accumule la durée de glisse et libère une poussée à la sortie.
+ *
+ * Reprise de PAKO (et du mini-turbo de Mario Kart) : tenir un dérapage long doit
+ * rapporter quelque chose, sinon glisser n'est qu'une perte de vitesse et le jeu
+ * optimal consiste à ne jamais déraper. La poussée part vers l'avant du véhicule,
+ * donc vers la sortie du virage.
+ *
+ * À appeler une fois par frame, après la mise à jour de `carState.drifting`.
+ * Mute `carState` (velocity et driftTime), comme applyBump et applyLandingPenalty.
+ *
+ * @param {object} carState — état véhicule (drifting, angle, velocity, driftTime)
+ * @param {number} dt — deltaTime en secondes
+ * @param {object} consts — /config/gameplay.json → physics
+ * @returns {{ libere: boolean, charge: number }} charge ∈ [0, 1] pour le HUD/VFX
+ */
+export function tickDriftCharge(carState, dt, consts) {
+  const cfg    = consts ?? {};
+  const tMin   = cfg.driftBoostMinTime ?? 0.5;
+  const tPlein = cfg.driftBoostMaxTime ?? 2.0;
+  const pousse = cfg.driftBoostSpeed   ?? 3.0;
+
+  if (carState.drifting) {
+    carState.driftTime = (carState.driftTime ?? 0) + dt;
+    return { libere: false, charge: Math.min(1, carState.driftTime / tPlein) };
   }
 
-  return turn_rate;
+  const duree = carState.driftTime ?? 0;
+  carState.driftTime = 0;
+
+  // Une glisse trop courte ne rapporte rien : sans ce seuil, le moindre
+  // frémissement latéral déclencherait une poussée et la conduite deviendrait
+  // saccadée.
+  if (duree < tMin) return { libere: false, charge: 0 };
+
+  const charge = Math.min(1, duree / tPlein);
+  carState.velocity.x += Math.cos(carState.angle) * pousse * charge;
+  carState.velocity.z += Math.sin(carState.angle) * pousse * charge;
+  return { libere: true, charge };
+}
+
+// ---- Braquage progressif (entrée de virage en clothoïde) ----
+
+/**
+ * Fait monter le braquage progressivement au lieu de le faire passer de 0 à
+ * 100 % en une frame.
+ *
+ * Les entrées sont binaires (touche ou zone tactile) : sans rampe, la courbure
+ * de la trajectoire saute d'un coup à sa valeur finale et le virage démarre déjà
+ * rond. Avec une rampe, la courbure croît avec la distance parcourue — c'est une
+ * clothoïde, la courbe qu'utilisent les routes pour raccorder une ligne droite à
+ * un arc de cercle. `steerRampTime` règle donc directement la longueur de
+ * l'entrée du virage.
+ *
+ * Le retour (relâcher ou contre-braquer) a sa propre durée, en général plus
+ * courte : on veut pouvoir redresser vite.
+ *
+ * Une durée à 0 rend le braquage instantané, comme avant.
+ *
+ * @param {object} carState — état véhicule, mute steerSmooth
+ * @param {number} cible    — entrée brute ∈ [-1, 1]
+ * @param {number} dt
+ * @param {object} consts   — /config/gameplay.json → physics
+ * @returns {number} braquage effectif ∈ [-1, 1]
+ */
+export function rampSteering(carState, cible, dt, consts) {
+  const cfg    = consts ?? {};
+  const actuel = carState.steerSmooth ?? 0;
+
+  // On braque davantage : même sens (ou départ de zéro) et amplitude qui grandit
+  const accentue = cible !== 0
+    && (actuel === 0 || Math.sign(cible) === Math.sign(actuel))
+    && Math.abs(cible) > Math.abs(actuel);
+  const duree = accentue ? (cfg.steerRampTime ?? 0) : (cfg.steerReturnTime ?? 0);
+
+  if (duree <= 0) {
+    carState.steerSmooth = cible;
+    return cible;
+  }
+
+  const pas     = dt / duree;          // pleine amplitude (0 → 1) en `duree` secondes
+  const ecart   = cible - actuel;
+  const suivant = Math.abs(ecart) <= pas ? cible : actuel + Math.sign(ecart) * pas;
+  carState.steerSmooth = suivant;
+  return suivant;
 }
 
 // ---- Rebond élastique sur mur (E03-S09) ----
@@ -213,7 +421,7 @@ export function computeTurnRate(steering, dec, is_drifting, consts) {
  * @param {number} restitution — ∈ [0, 1] (0 = inélastique, 1 = parfaitement élastique)
  * @returns {{ x: number, z: number }} — nouvelle velocity après rebond
  */
-export function applyBounce(velocity, pushBack, restitution) {
+export function applyBounce(velocity, pushBack, restitution, consts = null) {
   const len = Math.sqrt(pushBack.x ** 2 + pushBack.z ** 2);
   if (len < 0.001) return { x: velocity.x, z: velocity.z }; // normale invalide, pas de rebond
 
@@ -224,9 +432,31 @@ export function applyBounce(velocity, pushBack, restitution) {
   // Ne rebondit que si la velocity pointe vers le mur (v_dot < 0)
   if (v_dot >= 0) return { x: velocity.x, z: velocity.z };
 
+  const vLen = Math.sqrt(velocity.x ** 2 + velocity.z ** 2);
+  // 1 = choc de face, 0 = frottement rasant le long du mur
+  const incidence = vLen > 0.01 ? Math.min(1, Math.abs(v_dot) / vLen) : 0;
+
+  // Le rebond dépend de l'incidence. Avec un coefficient unique, un choc de face
+  // renvoyait la moitié de la vitesse vers l'arrière : la voiture repartait en
+  // marche arrière puis pivotait pour s'aligner dessus — elle se retournait à
+  // pleine vitesse. Pire, se jeter dans un mur devenait un bon moyen de freiner.
+  // De face on s'arrête donc, en rasant on continue de glisser.
+  const cfg    = consts ?? {};
+  const rasant = cfg.wallBounceGrazing ?? restitution ?? 0.5;
+  const face   = cfg.wallBounceHeadOn  ?? 0.05;
+  const rebond = rasant * (1 - incidence) + face * incidence;
+
+  // Décomposition normale / tangentielle
+  const vnx = v_dot * nx,        vnz = v_dot * nz;
+  const vtx = velocity.x - vnx,  vtz = velocity.z - vnz;
+
+  // Frotter le long d'un mur coûte un peu de vitesse : sans ça, longer la paroi
+  // est gratuit et devient la trajectoire optimale.
+  const friction = 1 - (cfg.wallFriction ?? 0.12);
+
   return {
-    x: velocity.x - (1 + restitution) * v_dot * nx,
-    z: velocity.z - (1 + restitution) * v_dot * nz,
+    x: vtx * friction - vnx * rebond,
+    z: vtz * friction - vnz * rebond,
   };
 }
 
@@ -267,6 +497,7 @@ export function createState({ x = 0, z = 0, angle = 0, elevation = 0 } = {}) {
   return {
     position: { x, z }, velocity: { x: 0, z: 0 },
     angle, speed: 0, drifting: false, elevation,
+    driftTime: 0, steerSmooth: 0,
     // V4 : état vertical réel (hauteur monde + vitesse verticale)
     y: 0, vy: 0, airborne: false, vyTerrain: 0, hauteurSol: 0,
   };
@@ -433,79 +664,3 @@ export function tickVertical(carState, solCible, dt, consts, surRampe = false) {
   return { landed: false, launched: false, impact: 0 };
 }
 
-/**
- * Calcule le nouvel état pour une frame.
- *
- * @param {object} state      — état courant (muté en place ET retourné)
- * @param {object} vehicleStats — { speed: maxSpeed, grip, accel } issus de voxel/stats
- * @param {{ steering: number, braking: number }} inputs
- * @param {number} dt         — deltaTime en secondes
- * @returns {object}          — le même état mis à jour
- */
-export function tick(state, vehicleStats, inputs, dt, modifiers = {}) {
-  if (!_config) return state; // config pas encore chargée
-
-  const cfg       = _config;
-  // maxSpeedMultiplier : 0.5 sticky | 1.3 ramp | 1.5 boost
-  const maxSpeed  = vehicleStats.speed * (modifiers.maxSpeedMultiplier ?? 1);
-  const grip      = vehicleStats.grip;
-  const accelStat = vehicleStats.accel;
-
-  // ---- Vitesse ----
-  const accelRate = cfg.accelRate * (accelStat / cfg.baseAccel);
-  const maxReverse = -maxSpeed * 0.4; // marche arrière limitée à 40% de la vitesse max
-
-  // SOLO-03 : marche arrière activable avant l'arrêt complet
-  const reverseThreshold = cfg.REVERSE_SPEED_THRESHOLD ?? 0.1;
-  if (inputs.reversing) {
-    if (state.speed > reverseThreshold) {
-      state.speed = Math.max(0, state.speed - cfg.brakingDecel * dt);
-    } else {
-      state.speed = Math.max(maxReverse, state.speed - accelRate * 0.5 * dt);
-    }
-  } else if (inputs.braking) {
-    // Freinage (vers 0 seulement, ne passe pas en négatif)
-    state.speed = Math.max(0, state.speed - cfg.brakingDecel * dt);
-  } else {
-    // Accélération vers maxSpeed
-    if (state.speed < maxSpeed) {
-      state.speed = Math.min(maxSpeed, state.speed + accelRate * dt);
-    }
-    // Si on était en marche arrière et qu'on relâche tout : retour progressif vers 0
-    if (state.speed < 0) {
-      state.speed = Math.min(0, state.speed + cfg.brakingDecel * 0.5 * dt);
-    }
-    // Décélération naturelle légère (résistance à l'air, en marche avant seulement)
-    if (state.speed > 0) {
-      state.speed = Math.max(0, state.speed - cfg.naturalDecel * dt * 0.1);
-    }
-  }
-
-  // ---- Rotation ----
-  // angularVelocity = steering × turnRate × grip_normalisé
-  const gripNorm = grip / cfg.baseGrip; // 1.0 à plein grip de base
-  const angularVelocity = inputs.steering * cfg.turnRate * Math.sqrt(gripNorm);
-
-  // Dérapage : si rotation trop forte par rapport au grip
-  const driftSeuil = cfg.driftThreshold / Math.max(0.5, gripNorm);
-  state.drifting = Math.abs(angularVelocity) * (state.speed / Math.max(1, maxSpeed)) > driftSeuil;
-
-  // En dérapage : vitesse réduite par frottement latéral
-  if (state.drifting) {
-    state.speed *= Math.pow(cfg.driftFriction, dt * 60);
-  }
-
-  // Appliquer la rotation (proportionnelle à la vitesse pour éviter de pivoter sur place)
-  const speedRatio = Math.min(1, state.speed / Math.max(1, maxSpeed * 0.3));
-  state.angle += angularVelocity * speedRatio * dt;
-
-  // ---- Déplacement ----
-  // Avance selon l'angle courant
-  state.position.x += Math.sin(state.angle) * state.speed * dt;
-  state.position.z += Math.cos(state.angle) * state.speed * dt;
-
-  // Bloc dur : arrêt complet (le push-back de position est appliqué par l'appelant)
-  if (modifiers.hardStop) state.speed = 0;
-
-  return state;
-}

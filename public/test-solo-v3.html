@@ -550,7 +550,9 @@
     #btn-annuler-quitter:hover { background: rgba(255, 255, 255, 0.14); }
 
     /* ---- Panel calibration (gauche) ---- */
-    #panel-calibration {
+    /* Calibration et forme du virage partagent le même tiroir gauche */
+    #panel-calibration,
+    #panel-virage {
       position: fixed;
       top: 0;
       left: 0;
@@ -567,7 +569,40 @@
       scrollbar-width: thin;
     }
 
-    #panel-calibration.visible { display: block; }
+    #panel-calibration.visible,
+    #panel-virage.visible { display: block; }
+
+    #panel-virage canvas {
+      display: block;
+      border-radius: 4px;
+      background: rgba(255, 255, 255, 0.04);
+    }
+
+    .vir-aide {
+      opacity: 0.55;
+      margin: -6px 0 8px;
+      line-height: 1.35;
+    }
+
+    .vir-legende {
+      font-size: 10px;
+      opacity: 0.45;
+      margin: 3px 0 2px;
+    }
+
+    .vir-barre {
+      height: 6px;
+      background: rgba(255, 255, 255, 0.08);
+      border-radius: 3px;
+      overflow: hidden;
+      margin: 2px 0 6px;
+    }
+
+    #vir-pct-barre {
+      height: 100%;
+      width: 0;
+      background: #4488ff;
+    }
 
     .cal-titre {
       font-size: 14px;
@@ -605,7 +640,8 @@
       text-align: right;
     }
 
-    #panel-calibration input[type="range"] {
+    #panel-calibration input[type="range"],
+    #panel-virage input[type="range"] {
       width: 100%;
       accent-color: #667eea;
       cursor: pointer;
@@ -776,6 +812,7 @@
     <button class="btn" id="btn-map">Nouvelle map [R]</button>
     <button class="btn" id="btn-auto-boucle">Auto [A]</button>
     <button class="btn" id="btn-calibration">Calibration [C]</button>
+    <button class="btn" id="btn-virage">Virage [P]</button>
     <button class="btn" id="btn-debug-toggle">Debug [D]</button>
   </div>
 
@@ -853,7 +890,7 @@
       <span class="debug-val" id="dbg-angle">0.0°</span>
     </div>
     <div class="debug-ligne">
-      <span class="debug-lbl">v_lat seuil</span>
+      <span class="debug-lbl">Dérive / seuil</span>
       <span class="debug-val" id="dbg-threshold">—</span>
     </div>
     <div class="debug-ligne">
@@ -902,6 +939,7 @@
     <input type="range" id="sl-map-x" min="2" max="8" step="1" value="4">
     <div class="cal-row"><span class="cal-lbl">Taille Y (blocs)</span><span class="cal-val" id="val-map-y">4</span></div>
     <input type="range" id="sl-map-y" min="2" max="8" step="1" value="4">
+    <button class="profil-btn actif" id="btn-cloture" style="width:100%;margin-top:6px">Clôture ✓ [F]</button>
 
     <div class="cal-section">Véhicule</div>
     <div class="cal-row"><span class="cal-lbl">Blocs véhicule</span><span class="cal-val" id="val-blocs">16</span></div>
@@ -938,6 +976,53 @@
       <button class="profil-btn" data-profil="fusee">Fusée &nbsp; s=1.0 g=0.4 a=1.0</button>
       <button class="profil-btn" data-profil="savonnette">Savonnette &nbsp; s=0.5 g=0.1 a=0.5</button>
     </div>
+  </div>
+
+  <!-- Panel forme du virage (gauche, exclusif avec la calibration) -->
+  <div id="panel-virage">
+    <div class="cal-titre">Forme du virage</div>
+    <div class="vir-aide">Tiens un virage à fond 2 à 3 s, puis relâche : la mesure s'affiche.</div>
+
+    <div class="cal-section">Trajectoire</div>
+    <canvas id="vir-trace" width="230" height="200"></canvas>
+    <div class="vir-legende">● départ · ○ fin de l'entrée · pointillé : cercle final</div>
+
+    <div class="cal-section">Courbure le long du virage</div>
+    <canvas id="vir-courbure" width="230" height="90"></canvas>
+    <div class="vir-legende">zone bleue : entrée · montée lente : escargot · palier : cercle</div>
+
+    <div class="cal-section">Mesures</div>
+    <div class="cal-row"><span class="cal-lbl">Entrée</span><span class="cal-val" id="vir-entree">–</span></div>
+    <div class="cal-row"><span class="cal-lbl">Rayon d'entrée</span><span class="cal-val" id="vir-r-entree">–</span></div>
+    <div class="cal-row"><span class="cal-lbl">Rayon final</span><span class="cal-val" id="vir-r-final">–</span></div>
+    <div class="cal-row"><span class="cal-lbl">Escargot</span><span class="cal-val" id="vir-resserrement">–</span></div>
+    <div class="cal-row"><span class="cal-lbl">Cercle atteint</span><span class="cal-val" id="vir-cercle">–</span></div>
+
+    <div class="cal-section">Vitesse</div>
+    <div class="cal-row"><span class="cal-lbl">Part de la vitesse max</span><span class="cal-val" id="vir-pct">–</span></div>
+    <div class="vir-barre"><div id="vir-pct-barre"></div></div>
+    <div class="cal-row"><span class="cal-lbl">Accélération</span><span class="cal-val" id="vir-accel">–</span></div>
+    <div class="cal-row"><span class="cal-lbl">10 → 90 % de vmax</span><span class="cal-val" id="vir-chrono">–</span></div>
+
+    <div class="cal-section">Volant</div>
+    <div class="cal-row"><span class="cal-lbl">Montée (longueur d'entrée)</span><span class="cal-val" id="val-steer-ramp">0.00 s</span></div>
+    <input type="range" id="sl-steer-ramp" min="0" max="1.5" step="0.05" value="0">
+    <div class="cal-row"><span class="cal-lbl">Retour</span><span class="cal-val" id="val-steer-return">0.00 s</span></div>
+    <input type="range" id="sl-steer-return" min="0" max="1" step="0.05" value="0">
+
+    <div class="cal-section">Dérapage</div>
+    <div class="cal-row"><span class="cal-lbl">Seuil d'entrée (dérive)</span><span class="cal-val" id="val-drift-enter">0°</span></div>
+    <input type="range" id="sl-drift-enter" min="3" max="30" step="1" value="11">
+    <div class="cal-row"><span class="cal-lbl">Seuil de sortie (dérive)</span><span class="cal-val" id="val-drift-exit">0°</span></div>
+    <input type="range" id="sl-drift-exit" min="1" max="20" step="1" value="6">
+    <div class="cal-row"><span class="cal-lbl">Survirage</span><span class="cal-val" id="val-drift-boost">0.00</span></div>
+    <input type="range" id="sl-drift-boost" min="0" max="1" step="0.05" value="0.45">
+    <div class="cal-row"><span class="cal-lbl">Amortissement (recalage nez)</span><span class="cal-val" id="val-yaw-damp">0.0</span></div>
+    <input type="range" id="sl-yaw-damp" min="0.3" max="4" step="0.1" value="1.6">
+    <div class="cal-row"><span class="cal-lbl">Autorité de braquage (rayon)</span><span class="cal-val" id="val-turn-lat">0.0</span></div>
+    <input type="range" id="sl-turn-lat" min="10" max="45" step="1" value="25">
+    <div class="cal-row"><span class="cal-lbl">Vitesse de rotation max</span><span class="cal-val" id="val-turn-speed">0.00</span></div>
+    <input type="range" id="sl-turn-speed" min="1" max="6" step="0.1" value="3.5">
   </div>
 
   <!-- Panel graphiques canvas 2D (droite bas) -->

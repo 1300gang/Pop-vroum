@@ -292,7 +292,8 @@ async function _regenererMap() {
 
   // (Re)créer les bots
   if (_botConfigs.length > 0) {
-    bot.init(_scene, _botConfigs, _map.startPosition, _map.finishPosition.x, COHESION_RADIUS);
+    bot.init(_scene, _botConfigs, _map.startPosition, _map.finishPosition.x, COHESION_RADIUS,
+             { physics: _physConsts, vehicleStats: _vehicleStatsCfg });
     _mettreAJourHUDBots();
   }
 }
@@ -632,7 +633,7 @@ function _boucle(now) {
         // Rebond élastique sur mur (E03-S09)
         if (terrain.pushBack) {
           const bounced = physics.applyBounce(
-            _carState.velocity, terrain.pushBack, _physConsts.restitution
+            _carState.velocity, terrain.pushBack, _physConsts.restitution, _physConsts
           );
           _carState.velocity.x = bounced.x;
           _carState.velocity.z = bounced.z;
@@ -661,19 +662,21 @@ function _boucle(now) {
         // Décomposition velocity (E03-S02) — avant les forces pour le drift
         const dec       = physics.decompose(_carState.velocity, _carState.angle);
 
-        // Détection drift + grip courant (E03-S05 + S08 : surface_grip séparé)
-        const driftInfo = physics.detectDrift(dec, _physConsts, statsNorm, surfaceGrip);
+        // Angle de dérive + adhérence latérale disponible (courbe de pneu)
+        const driftInfo = physics.detectDrift(
+          dec, _physConsts, statsNorm, surfaceGrip, _carState.drifting,
+        );
         _carState.drifting = driftInfo.is_drifting;
 
-        // Forces → nouvelle velocity (E03-S03) avec grip drift si en dérapage
+        // Forces → nouvelle velocity
         const newV = physics.computeForces(
-          _carState, { throttle }, statsNorm, dt, _physConsts, driftInfo.current_grip
+          _carState, { throttle }, statsNorm, dt, _physConsts, driftInfo.lateralGrip
         );
         _carState.velocity.x = newV.x;
         _carState.velocity.z = newV.z;
 
-        // Rotation décorrélée avec oversteer en drift (E03-S04 + S06)
-        const turn_rate = physics.computeTurnRate(inputs.steering, dec, driftInfo.is_drifting, _physConsts);
+        // Rotation décorrélée, survirage continu selon l'angle de dérive
+        const turn_rate = physics.computeTurnRate(inputs.steering, dec, driftInfo, _physConsts);
         _carState.angle += turn_rate * dt;
 
         // Position via velocity
@@ -692,7 +695,7 @@ function _boucle(now) {
     _vehicleGroup.position.set(_carState.position.x, 0.4, _carState.position.z);
     _vehicleGroup.rotation.y = -_carState.angle;
     // Legacy : steerInput en proxy (v_lateral ~ -steering en physique V1)
-    applyRoll(_vehicleGroup, _carState.drifting, -inputs.steering);
+    applyRoll(_vehicleGroup, -inputs.steering * (_carState.speed ?? 0) * 0.35, dt, 'z', _physConsts);
 
     // Skid orienté sur velocity réelle (E03-S11)
     if (_carState.drifting && _carState.speed > 0.5) {
@@ -716,7 +719,7 @@ function _boucle(now) {
       particles.emitDust(
         { x: _carState.position.x - nx * 0.7, y: 0.15, z: _carState.position.z - nz * 0.7 },
         _carState.velocity,
-        '#c8b89a',
+        COULEUR_HEX[_vehicleData?.palette?.[0]] ?? '#c8b89a',
         1 + Math.floor(Math.random() * 2),
       );
     }

@@ -1,0 +1,1324 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Pop Vroum — Test V5</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      height: 100%;
+      overflow: hidden;
+      background: #1a1a2e;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      color: #fff;
+    }
+
+    #jeu {
+      position: fixed;
+      inset: 0;
+      width: 100vw;
+      height: 100vh;
+      display: block;
+      touch-action: none;
+    }
+
+    /* ---- HUD gauche (infos véhicule) ---- */
+    #hud-gauche {
+      position: fixed;
+      top: 12px;
+      left: 12px;
+      background: rgba(0, 0, 0, 0.6);
+      backdrop-filter: blur(4px);
+      border-radius: 10px;
+      padding: 12px 16px;
+      min-width: 180px;
+      max-width: 240px;
+      pointer-events: none;
+      z-index: 10;
+      line-height: 1.5;
+      font-size: 13px;
+    }
+
+    #nom-vehicule {
+      font-size: 15px;
+      font-weight: 700;
+      color: #ffd166;
+      margin-bottom: 8px;
+    }
+
+    #couleurs {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      margin-bottom: 8px;
+    }
+
+    .pill {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 99px;
+      font-size: 11px;
+      font-weight: 600;
+      color: #fff;
+      text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+    }
+
+    .stat-ligne {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      opacity: 0.9;
+    }
+
+    .stat-val { color: #a8e6cf; font-weight: 600; }
+
+    .sep { border: none; border-top: 1px solid rgba(255,255,255,0.12); margin: 6px 0; }
+
+    .pouvoir-ligne {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      line-height: 1.6;
+    }
+
+    .pouvoir-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .pouvoir-barre-wrap {
+      flex: 1;
+      height: 4px;
+      background: rgba(255,255,255,0.1);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+
+    .pouvoir-barre {
+      height: 100%;
+      border-radius: 2px;
+      transition: width 0.3s;
+    }
+
+    /* ---- HUD droit (preview + boutons) ---- */
+    #hud-droite {
+      position: fixed;
+      top: 12px;
+      right: 12px;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 6px;
+      z-index: 10;
+    }
+
+    #preview-wrap {
+      background: rgba(0, 0, 0, 0.6);
+      backdrop-filter: blur(4px);
+      border-radius: 10px;
+      padding: 6px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    #preview {
+      display: block;
+      border-radius: 6px;
+    }
+
+    .btn {
+      background: #667eea;
+      color: #fff;
+      border: none;
+      padding: 8px 14px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 13px;
+      transition: background 0.15s;
+    }
+    .btn:hover  { background: #5568d3; }
+    .btn:active { background: #4455c0; }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    /* ---- HUD bas (vitesse + contrôles) ---- */
+    #hud-bas {
+      position: fixed;
+      bottom: 12px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      background: rgba(0, 0, 0, 0.55);
+      backdrop-filter: blur(4px);
+      border-radius: 8px;
+      padding: 7px 16px;
+      font-size: 13px;
+      pointer-events: none;
+      z-index: 10;
+    }
+
+    #drift-label {
+      color: #ff6b6b;
+      font-weight: 700;
+      animation: clignoter 0.4s step-start infinite;
+      display: none;
+    }
+
+    @keyframes clignoter {
+      50% { opacity: 0; }
+    }
+
+    .controles-hint {
+      opacity: 0.55;
+      font-size: 12px;
+    }
+
+    /* ---- Boutons de contrôle tactile ---- */
+    #ctrl-boutons {
+      position: fixed;
+      bottom: 56px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 10px;
+      z-index: 12;
+      pointer-events: all;
+    }
+
+    .ctrl-btn {
+      background: rgba(255, 255, 255, 0.12);
+      border: 2px solid rgba(255, 255, 255, 0.3);
+      border-radius: 10px;
+      color: #fff;
+      font-size: 15px;
+      font-family: inherit;
+      font-weight: 600;
+      padding: 10px 22px;
+      cursor: pointer;
+      user-select: none;
+      -webkit-user-select: none;
+      touch-action: none;
+      transition: background 0.1s;
+    }
+
+    .ctrl-btn:active,
+    .ctrl-btn.actif {
+      background: rgba(255, 255, 255, 0.32);
+      border-color: rgba(255, 255, 255, 0.7);
+    }
+
+    /* ---- Bandeau arrivée ---- */
+    #banner {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(255, 209, 102, 0.96);
+      color: #222;
+      padding: 22px 44px;
+      border-radius: 14px;
+      font-size: 28px;
+      font-weight: 700;
+      display: none;
+      z-index: 20;
+      text-align: center;
+    }
+
+    /* ---- Écran de démarrage ---- */
+    #ecran-demarrage {
+      position: fixed;
+      inset: 0;
+      background: #1a1a2e;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 110;
+    }
+
+    #demarrage-corps {
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 18px;
+      padding: 36px 44px;
+      text-align: center;
+      max-width: 400px;
+      width: 90%;
+    }
+
+    #demarrage-corps h1 {
+      font-size: 22px;
+      font-weight: 700;
+      margin-bottom: 6px;
+      color: #ffd166;
+    }
+
+    #demarrage-corps p {
+      font-size: 13px;
+      opacity: 0.6;
+      margin-bottom: 28px;
+      line-height: 1.5;
+    }
+
+    #demarrage-vehicule {
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 10px;
+      padding: 12px 16px;
+      margin-bottom: 20px;
+      text-align: left;
+    }
+
+    #demarrage-vehicule-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+
+    #btn-reroll {
+      background: rgba(255,255,255,0.1);
+      border: 1px solid rgba(255,255,255,0.2);
+      border-radius: 6px;
+      color: #fff;
+      font-size: 16px;
+      padding: 3px 8px;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+
+    #btn-reroll:hover { background: rgba(255,255,255,0.22); }
+
+    #demarrage-couleurs {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      margin-bottom: 8px;
+    }
+
+    #demarrage-stats {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .demarrage-stat-ligne {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 11px;
+      opacity: 0.8;
+    }
+
+    .demarrage-stat-label { min-width: 72px; }
+
+    .demarrage-stat-barre-wrap {
+      flex: 1;
+      height: 4px;
+      background: rgba(255,255,255,0.12);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+
+    .demarrage-stat-barre {
+      height: 100%;
+      background: #a8e6cf;
+      border-radius: 2px;
+    }
+
+    .demarrage-stat-val { min-width: 28px; text-align: right; color: #a8e6cf; font-weight: 600; }
+
+    #source-vehicule {
+      font-size: 11px;
+      opacity: 0.5;
+      margin-bottom: 16px;
+      font-style: italic;
+    }
+
+    #btn-lancer {
+      background: #667eea;
+      color: #fff;
+      border: none;
+      border-radius: 10px;
+      padding: 12px 36px;
+      font-size: 16px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: background 0.15s, transform 0.1s;
+    }
+
+    #btn-lancer:hover  { background: #5568d3; }
+    #btn-lancer:active { transform: scale(0.97); }
+
+    /* ---- Overlay chargement ---- */
+    #loading {
+      position: fixed;
+      inset: 0;
+      background: #1a1a2e;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      z-index: 100;
+      font-size: 16px;
+      color: rgba(255, 255, 255, 0.7);
+    }
+
+    #loading-bar-wrap {
+      width: 240px;
+      height: 6px;
+      background: rgba(255,255,255,0.15);
+      border-radius: 3px;
+      overflow: hidden;
+    }
+
+    #loading-bar {
+      height: 100%;
+      width: 0%;
+      background: #667eea;
+      border-radius: 3px;
+      transition: width 0.3s;
+    }
+
+    /* ---- Panel debug physique V2 ---- */
+    #debug-phys {
+      position: fixed;
+      /* 180px : passe au-dessus de la mini-carte (bottom 8px + 160px de haut),
+         qu'il chevauchait avant — les deux se disputaient le même coin. */
+      bottom: 180px;
+      right: 12px;
+      background: rgba(0, 0, 0, 0.78);
+      backdrop-filter: blur(6px);
+      border: 1px solid rgba(68, 136, 255, 0.3);
+      border-radius: 10px;
+      padding: 10px 14px;
+      min-width: 210px;
+      pointer-events: auto;
+      z-index: 10;
+      font-size: 12px;
+      line-height: 1.65;
+    }
+
+    #debug-phys-titre {
+      font-size: 13px;
+      font-weight: 700;
+      color: #4488ff;
+      letter-spacing: 0.02em;
+      cursor: pointer;
+      user-select: none;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    #debug-phys.collapsed #debug-phys-titre { margin-bottom: 0; }
+    #debug-phys-titre { margin-bottom: 6px; }
+
+    #debug-phys-chevron { opacity: 0.6; font-size: 11px; }
+
+    /* Replié : seul le titre reste, le panel entier redevient une simple étiquette */
+    #debug-phys.collapsed #debug-phys-corps { display: none; }
+
+    .debug-ligne {
+      display: flex;
+      justify-content: space-between;
+      gap: 6px;
+    }
+
+    .debug-lbl { opacity: 0.55; }
+
+    .debug-val { color: #a8e6cf; font-variant-numeric: tabular-nums; }
+
+    #debug-phys input[type="range"] {
+      width: 100%;
+      accent-color: #ff6b6b;
+      cursor: pointer;
+      margin-top: 2px;
+    }
+
+    /* ---- Overlay d'équilibrage RACE-H04 ---- */
+    #overlay-debug {
+      position: fixed;
+      top: 12px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0, 0, 0, 0.82);
+      backdrop-filter: blur(6px);
+      border: 1px solid rgba(255, 220, 50, 0.35);
+      border-radius: 10px;
+      padding: 10px 18px;
+      z-index: 15;
+      font-size: 12px;
+      line-height: 1.7;
+      pointer-events: none;
+      display: none;
+      white-space: nowrap;
+    }
+
+    #overlay-debug-titre {
+      font-size: 12px;
+      font-weight: 700;
+      color: #ffd166;
+      margin-bottom: 4px;
+      letter-spacing: 0.04em;
+      text-align: center;
+    }
+
+    .ov-ligne {
+      display: flex;
+      justify-content: space-between;
+      gap: 20px;
+    }
+
+    .ov-lbl { opacity: 0.5; }
+
+    .ov-val { color: #a8e6cf; font-variant-numeric: tabular-nums; font-weight: 600; }
+
+    .ov-val.alerte { color: #ff6b6b; }
+
+    /* ---- Bouton quitter ---- */
+    #btn-quitter {
+      position: fixed;
+      top: 12px;
+      left: 12px;
+      z-index: 30;
+      background: rgba(0, 0, 0, 0.55);
+      backdrop-filter: blur(4px);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      color: rgba(255, 255, 255, 0.6);
+      border-radius: 8px;
+      padding: 6px 12px;
+      font-size: 13px;
+      cursor: pointer;
+      transition: background .15s, color .15s;
+    }
+
+    #btn-quitter:hover {
+      background: rgba(200, 50, 50, 0.7);
+      color: #fff;
+    }
+
+    /* ---- Modale de confirmation ---- */
+    #modale-quitter {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.75);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 50;
+    }
+
+    #modale-quitter.visible { display: flex; }
+
+    #modale-quitter .modale-corps {
+      background: #1a1a2e;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 14px;
+      padding: 28px 32px;
+      max-width: 360px;
+      width: 90%;
+      text-align: center;
+    }
+
+    #modale-quitter h2 { font-size: 18px; margin-bottom: 10px; }
+
+    #modale-quitter p {
+      font-size: 13px;
+      opacity: 0.6;
+      margin-bottom: 22px;
+      line-height: 1.5;
+    }
+
+    #modale-quitter .modale-actions { display: flex; gap: 10px; justify-content: center; }
+
+    #btn-confirmer-quitter {
+      background: #e74c3c;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      padding: 9px 22px;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    #btn-confirmer-quitter:hover { opacity: .85; }
+
+    #btn-annuler-quitter {
+      background: rgba(255, 255, 255, 0.08);
+      color: #fff;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 8px;
+      padding: 9px 22px;
+      font-size: 14px;
+      cursor: pointer;
+    }
+
+    #btn-annuler-quitter:hover { background: rgba(255, 255, 255, 0.14); }
+
+    /* ---- Panel calibration (gauche) ---- */
+    /* Calibration, forme du virage et pouvoirs partagent le même tiroir gauche */
+    #panel-calibration,
+    #panel-virage,
+    #panel-pouvoirs {
+      position: fixed;
+      top: 0;
+      left: 0;
+      bottom: 0;
+      width: 258px;
+      background: rgba(0, 0, 0, 0.88);
+      backdrop-filter: blur(8px);
+      border-right: 1px solid rgba(255, 255, 255, 0.1);
+      padding: 52px 14px 16px;
+      overflow-y: auto;
+      z-index: 20;
+      display: none;
+      font-size: 12px;
+      scrollbar-width: thin;
+    }
+
+    #panel-calibration.visible,
+    #panel-virage.visible,
+    #panel-pouvoirs.visible { display: block; }
+
+    #panel-virage canvas {
+      display: block;
+      border-radius: 4px;
+      background: rgba(255, 255, 255, 0.04);
+    }
+
+    .vir-aide {
+      opacity: 0.55;
+      margin: -6px 0 8px;
+      line-height: 1.35;
+    }
+
+    .vir-legende {
+      font-size: 10px;
+      opacity: 0.45;
+      margin: 3px 0 2px;
+    }
+
+    .vir-barre {
+      height: 6px;
+      background: rgba(255, 255, 255, 0.08);
+      border-radius: 3px;
+      overflow: hidden;
+      margin: 2px 0 6px;
+    }
+
+    #vir-pct-barre {
+      height: 100%;
+      width: 0;
+      background: #4488ff;
+    }
+
+    .cal-titre {
+      font-size: 14px;
+      font-weight: 700;
+      color: #ffd166;
+      margin-bottom: 14px;
+      letter-spacing: 0.04em;
+    }
+
+    .cal-section {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: rgba(255, 255, 255, 0.35);
+      margin: 12px 0 5px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      padding-bottom: 3px;
+    }
+
+    .cal-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1px;
+      gap: 8px;
+    }
+
+    .cal-lbl { opacity: 0.75; white-space: nowrap; }
+
+    .cal-val {
+      color: #a8e6cf;
+      font-weight: 600;
+      min-width: 42px;
+      text-align: right;
+    }
+
+    #panel-calibration input[type="range"],
+    #panel-virage input[type="range"],
+    #panel-pouvoirs input[type="range"] {
+      width: 100%;
+      accent-color: #667eea;
+      cursor: pointer;
+      margin-bottom: 6px;
+    }
+
+    .poids-ligne {
+      display: flex;
+      justify-content: space-between;
+      opacity: 0.55;
+      font-size: 11px;
+      margin-bottom: 8px;
+    }
+
+    #profils-btn {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+      margin-top: 6px;
+    }
+
+    .profil-btn {
+      background: rgba(255, 255, 255, 0.07);
+      border: 1px solid rgba(255, 255, 255, 0.13);
+      border-radius: 6px;
+      color: #fff;
+      padding: 6px 10px;
+      font-size: 12px;
+      cursor: pointer;
+      text-align: left;
+      font-family: inherit;
+      transition: background 0.1s;
+    }
+
+    .profil-btn:hover { background: rgba(100, 130, 255, 0.22); }
+
+    /* Relevé « qui agit sur qui » — un pouvoir altruiste ne se ressent pas
+       chez soi, il faut donc pouvoir le lire. */
+    .fx-ligne { margin-bottom: 5px; line-height: 1.45; }
+    .fx-src   { opacity: 0.45; font-size: 10px; }
+    .fx-vide  { opacity: 0.4; font-style: italic; line-height: 1.4; }
+    .pw-note  { font-size: 10px; opacity: 0.45; line-height: 1.4; margin: 4px 0 6px; }
+    .profil-btn.actif { background: rgba(100, 130, 255, 0.38); border-color: #667eea; }
+
+    /* ---- Panel graphiques (droite bas) ---- */
+    #panel-charts {
+      position: fixed;
+      bottom: 12px;
+      right: 12px;
+      background: rgba(0, 0, 0, 0.82);
+      backdrop-filter: blur(6px);
+      border: 1px solid rgba(68, 136, 255, 0.22);
+      border-radius: 10px;
+      padding: 10px 12px;
+      z-index: 10;
+      display: none;
+      width: 224px;
+    }
+
+    #panel-charts.visible { display: block; }
+
+    .chart-lbl {
+      font-size: 10px;
+      opacity: 0.45;
+      letter-spacing: 0.04em;
+      margin-bottom: 3px;
+    }
+
+    .chart-c {
+      display: block;
+      border-radius: 3px;
+      background: rgba(255, 255, 255, 0.04);
+      margin-bottom: 8px;
+    }
+
+    /* ---- Panel résultats de session ---- */
+    #panel-session {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(10, 10, 30, 0.95);
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      border-radius: 14px;
+      padding: 22px 30px;
+      min-width: 240px;
+      display: none;
+      z-index: 25;
+      text-align: center;
+    }
+
+    #panel-session.visible { display: block; }
+
+    .sess-titre {
+      font-size: 15px;
+      font-weight: 700;
+      color: #ffd166;
+      margin-bottom: 12px;
+    }
+
+    .sess-stat {
+      display: flex;
+      justify-content: space-between;
+      gap: 20px;
+      font-size: 13px;
+      line-height: 1.9;
+    }
+
+    .sess-val { color: #a8e6cf; font-weight: 600; }
+
+    /* Descriptions sous les curseurs : sans elles on règle à l'aveugle. */
+    .aide {
+      font-size: 10px;
+      line-height: 1.4;
+      opacity: 0.42;
+      margin: -3px 0 8px;
+    }
+    .cal-val.calc { color: #ffd166; }
+
+    /* ==== Atelier — dock unique à onglets ====================================
+       Remplace sept boutons flottants et cinq panneaux qui se recouvraient.
+       Les anciens panneaux sont conservés tels quels (leurs id servent au JS) :
+       on neutralise juste leur positionnement fixe pour qu'ils coulent dans le
+       volet qui les accueille. */
+
+    #atelier {
+      position: fixed;
+      top: 0; left: 0; bottom: 0;
+      width: 300px;
+      background: rgba(12, 12, 24, 0.94);
+      backdrop-filter: blur(10px);
+      border-right: 1px solid rgba(255, 255, 255, 0.12);
+      z-index: 30;
+      display: flex;
+      flex-direction: column;
+      font-size: 12px;
+      transform: translateX(0);
+      transition: transform 0.18s ease;
+    }
+    #atelier.replie { transform: translateX(-300px); }
+
+    #atelier-onglets {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1px;
+      padding: 44px 6px 6px;
+      flex-shrink: 0;
+      background: rgba(0, 0, 0, 0.35);
+    }
+
+    .onglet {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid transparent;
+      border-radius: 6px;
+      color: rgba(255, 255, 255, 0.55);
+      font-family: inherit;
+      font-size: 11px;
+      font-weight: 600;
+      padding: 7px 4px;
+      cursor: pointer;
+      transition: background 0.12s, color 0.12s;
+    }
+    .onglet:hover { background: rgba(255, 255, 255, 0.1); color: #fff; }
+    .onglet.actif {
+      background: rgba(102, 126, 234, 0.9);
+      border-color: rgba(255, 255, 255, 0.25);
+      color: #fff;
+    }
+
+    #atelier-corps {
+      flex: 1;
+      overflow-y: auto;
+      padding: 10px 14px 18px;
+      scrollbar-width: thin;
+    }
+
+    .volet { display: none; }
+    .volet.actif { display: block; }
+
+    #btn-atelier {
+      position: fixed;
+      top: 10px; left: 10px;
+      z-index: 31;
+      width: 32px; height: 32px;
+      background: rgba(12, 12, 24, 0.9);
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      border-radius: 8px;
+      color: #fff; font-size: 15px; cursor: pointer;
+      transition: left 0.18s ease;
+    }
+    #atelier.replie ~ #btn-atelier,
+    #btn-atelier.decale { left: 10px; }
+
+    /* ---- Les anciens panneaux redeviennent de simples blocs ---- */
+    #panel-virage,
+    #overlay-debug,
+    #debug-phys,
+    #panel-charts {
+      position: static;
+      display: block;
+      width: auto;
+      inset: auto;
+      margin: 0 0 10px;
+      padding: 0;
+      background: none;
+      border: none;
+      backdrop-filter: none;
+      box-shadow: none;
+      max-height: none;
+      overflow: visible;
+    }
+
+    /* Le relevé « Physique V5 » n'a plus de repli : il a son propre onglet */
+    #debug-phys.collapsed #debug-phys-corps { display: block; }
+    #debug-phys-titre { cursor: default; }
+    #debug-phys-chevron { display: none; }
+
+    #volet-vehicule #preview-wrap {
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 8px;
+      padding: 6px;
+      margin-bottom: 10px;
+      display: flex;
+      justify-content: center;
+    }
+    #volet-vehicule #nom-vehicule { font-size: 14px; }
+
+    /* Le HUD bas se décale pour ne pas passer sous le dock */
+    #hud-bas, #ctrl-boutons { margin-left: 150px; }
+    #atelier.replie ~ #hud-bas,
+    #atelier.replie ~ #ctrl-boutons { margin-left: 0; }
+  </style>
+</head>
+<body>
+
+  <!-- Canvas principal -->
+  <canvas id="jeu"></canvas>
+
+  <!-- Bouton quitter -->
+  <button id="btn-quitter">× Quitter</button>
+
+  <!-- Modale de confirmation -->
+  <div id="modale-quitter">
+    <div class="modale-corps">
+      <h2>Quitter le test ?</h2>
+      <p>Vous serez redirigé vers l'accueil.</p>
+      <div class="modale-actions">
+        <button id="btn-confirmer-quitter">Quitter</button>
+        <button id="btn-annuler-quitter">Annuler</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    document.getElementById('btn-quitter').addEventListener('click', () => {
+      document.getElementById('modale-quitter').classList.add('visible');
+    });
+    document.getElementById('btn-annuler-quitter').addEventListener('click', () => {
+      document.getElementById('modale-quitter').classList.remove('visible');
+    });
+    document.getElementById('btn-confirmer-quitter').addEventListener('click', () => {
+      window.location.href = '/';
+    });
+  </script>
+
+
+
+
+  <!-- Atelier : tous les réglages dans un seul dock à onglets.
+       Sept boutons et cinq panneaux flottants rendaient l'équilibrage illisible ;
+       ici un seul endroit, une page par sujet, comme un éditeur de propriétés. -->
+  <button id="btn-atelier" title="Afficher / masquer l'atelier (Tab)">☰</button>
+
+  <div id="atelier">
+    <div id="atelier-onglets">
+      <button class="onglet actif" data-onglet="vehicule">Véhicule</button>
+      <button class="onglet" data-onglet="map">Map</button>
+      <button class="onglet" data-onglet="physique">Physique</button>
+      <button class="onglet" data-onglet="virage">Virage</button>
+      <button class="onglet" data-onglet="pouvoirs">Pouvoirs</button>
+      <button class="onglet" data-onglet="mesures">Mesures</button>
+    </div>
+
+    <div id="atelier-corps">
+
+      <!-- ---- Véhicule ---- -->
+      <section class="volet actif" id="volet-vehicule">
+        <div id="preview-wrap">
+          <canvas id="preview" width="190" height="140"></canvas>
+        </div>
+        <div id="nom-vehicule">Génération…</div>
+        <div id="couleurs"></div>
+        <div class="cal-section">Caractéristiques</div>
+        <div class="stat-ligne"><span>Vitesse max</span><span class="stat-val" id="stat-speed">–</span></div>
+        <div class="stat-ligne"><span>Adhérence</span><span class="stat-val" id="stat-grip">–</span></div>
+        <div class="stat-ligne"><span>Accélération</span><span class="stat-val" id="stat-accel">–</span></div>
+        <div class="cal-section">Pouvoirs</div>
+        <div id="pouvoirs"></div>
+        <div class="cal-section">Véhicules de référence</div>
+        <div class="aide">Construits par une règle fixe : leurs stats sont
+          exactement les mêmes à chaque fois, donc deux essais sont comparables.
+          L'aléatoire ne permet pas ça.</div>
+        <div id="presets-btn"></div>
+
+        <div class="cal-section">Aléatoire</div>
+        <div class="cal-row"><span class="cal-lbl">Blocs véhicule</span><span class="cal-val" id="val-blocs">16</span></div>
+        <input type="range" id="sl-blocs" min="1" max="32" step="1" value="16">
+        <div class="poids-ligne"><span>Poids (estimé)</span><span id="val-poids">– kg</span></div>
+        <button class="profil-btn" id="btn-vehicule" style="width:100%">Nouveau véhicule [V]</button>
+      </section>
+
+      <!-- ---- Map ---- -->
+      <section class="volet" id="volet-map">
+        <div class="cal-section">Taille</div>
+        <div class="cal-row"><span class="cal-lbl">Taille X (blocs)</span><span class="cal-val" id="val-map-x">4</span></div>
+        <input type="range" id="sl-map-x" min="2" max="64" step="1" value="4">
+        <div class="cal-row"><span class="cal-lbl">Taille Y (blocs)</span><span class="cal-val" id="val-map-y">4</span></div>
+        <input type="range" id="sl-map-y" min="2" max="64" step="1" value="4">
+        <div id="avert-map" style="display:none;font-size:10px;line-height:1.45;margin-top:4px;color:#ffc46b"></div>
+        <div class="cal-section">Monde</div>
+        <button class="profil-btn actif" id="btn-cloture" style="width:100%">Clôture ✓ [F]</button>
+        <button class="profil-btn" id="btn-map" style="width:100%;margin-top:5px">Nouvelle map [R]</button>
+        <div class="poids-ligne" style="margin-top:8px"><span id="map-info">Map : …</span></div>
+      </section>
+
+      <!-- ---- Physique ---- -->
+      <section class="volet" id="volet-physique">
+        <div class="cal-section">Conduite</div>
+        <div class="aide">Stats normalisées du véhicule : 1,0 = aucun voxel de la
+          couleur, 4,0 = une voiture très typée. Le chiffre jaune est l'effet réel.
+          Attention : la courbe sature — au-delà de 8 on ne gagne presque plus rien,
+          c'est la section « Plafonds » plus bas qui élargit vraiment la fourchette.</div>
+        <div class="cal-row"><span class="cal-lbl">Vitesse</span><span class="cal-val calc" id="val-speed">–</span></div>
+        <input type="range" id="sl-speed" min="1" max="30" step="0.1" value="1.6">
+        <div class="aide">Plafond de vitesse. Le gain sature vite : doubler la stat
+          est loin de doubler la vitesse.</div>
+        <div class="cal-row"><span class="cal-lbl">Adhérence</span><span class="cal-val calc" id="val-grip-cal">–</span></div>
+        <input type="range" id="sl-grip-cal" min="1" max="30" step="0.1" value="1.6">
+        <div class="aide">Force latérale que les pneus peuvent encaisser. Bas = part
+          en glisse au moindre virage, haut = sur des rails.</div>
+        <div class="cal-row"><span class="cal-lbl">Accélération</span><span class="cal-val calc" id="val-accel">–</span></div>
+        <input type="range" id="sl-accel" min="1" max="30" step="0.1" value="1.6">
+        <div class="aide">Poussée du moteur, donc la reprise. N'change pas la vitesse
+          de pointe, seulement le temps pour l'atteindre.</div>
+        <div class="cal-row"><span class="cal-lbl">Punitivité</span><span class="cal-val" id="val-punit">1.0</span></div>
+        <input type="range" id="sl-punit" min="0.1" max="3.0" step="0.1" value="1.0">
+        <div class="aide">Multiplie les dégâts d'un choc : combien de voxels partent
+          pour une même violence d'impact.</div>
+        <div class="cal-row"><span class="cal-lbl">Vitesse min casse</span><span class="cal-val" id="val-vminc">8.0</span></div>
+        <input type="range" id="sl-vminc" min="0" max="20" step="0.5" value="8.0">
+        <div class="aide">Perte de vitesse (u/s) en dessous de laquelle un choc
+          n'abîme rien du tout.</div>
+
+        <div class="cal-section">Plafonds</div>
+        <div class="aide">Les vraies bornes de la conduite. Les curseurs du dessus ne
+          font que placer le véhicule <i>entre</i> un plancher et ces plafonds ; c'est
+          ici qu'on déplace les plafonds eux-mêmes.</div>
+        <div class="cal-row"><span class="cal-lbl">Vitesse max absolue</span><span class="cal-val calc" id="val-vmax">–</span></div>
+        <input type="range" id="sl-vmax" min="5" max="45" step="0.5" value="13">
+        <div class="aide">Plafond dur : aucun véhicule ne dépassera jamais cette
+          valeur multipliée par le facteur de saturation.</div>
+        <div class="cal-row"><span class="cal-lbl">Adhérence de référence</span><span class="cal-val calc" id="val-gripref">–</span></div>
+        <input type="range" id="sl-gripref" min="4" max="60" step="0.5" value="16">
+        <div class="aide">Force latérale de base des pneus. C'est le réglage le plus
+          direct pour rendre la voiture collante ou savonneuse.</div>
+        <div class="cal-row"><span class="cal-lbl">Poussée moteur</span><span class="cal-val calc" id="val-engine">–</span></div>
+        <input type="range" id="sl-engine" min="2" max="40" step="0.5" value="8">
+        <div class="aide">Accélération de base. Agit sur la reprise, pas sur la
+          vitesse de pointe.</div>
+
+        <div class="cal-section">Sauts</div>
+        <div class="cal-row"><span class="cal-lbl">Force des bosses</span><span class="cal-val" id="val-bump">5.0</span></div>
+        <input type="range" id="sl-bump" min="0" max="14" step="0.5" value="5.0">
+        <div class="aide">Coup de pied vertical d'une cellule « bosse ». Ne concerne
+          pas les rampes.</div>
+        <div class="cal-row"><span class="cal-lbl">Ampleur des tremplins</span><span class="cal-val" id="val-launch">1.00</span></div>
+        <input type="range" id="sl-launch" min="0.2" max="3.0" step="0.1" value="1.0">
+        <div class="aide">Combien la vitesse en haut d'une rampe se convertit en
+          hauteur. C'est le réglage de la longueur des sauts.</div>
+        <div class="cal-row"><span class="cal-lbl">Gravité</span><span class="cal-val" id="val-grav">18</span></div>
+        <input type="range" id="sl-grav" min="6" max="40" step="1" value="18">
+        <div class="aide">Vitesse de retombée. Bas = vols planés lents et flottants,
+          haut = sauts secs et courts.</div>
+        <div class="cal-row"><span class="cal-lbl">Frein de pente</span><span class="cal-val" id="val-pente">0.35</span></div>
+        <input type="range" id="sl-pente" min="0" max="1" step="0.05" value="0.35">
+        <div class="aide">Part de la gravité qui freine en montée. À 0 une rampe ne
+          coûte rien, à 1 elle casse l'élan.</div>
+
+        <div class="cal-section">Profils</div>
+        <div id="profils-btn">
+          <button class="profil-btn" data-profil="equilibre">Équilibré &nbsp; s=0.5 g=0.5 a=0.5</button>
+          <button class="profil-btn" data-profil="drift">Drift machine &nbsp; s=0.7 g=0.2 a=0.6</button>
+          <button class="profil-btn" data-profil="tank">Tank &nbsp; s=0.3 g=0.8 a=0.3</button>
+          <button class="profil-btn" data-profil="fusee">Fusée &nbsp; s=1.0 g=0.4 a=1.0</button>
+          <button class="profil-btn" data-profil="savonnette">Savonnette &nbsp; s=0.5 g=0.1 a=0.5</button>
+        </div>
+
+        <div class="cal-section">Pilotage auto</div>
+        <button class="profil-btn" id="btn-auto-boucle" style="width:100%">Auto [A]</button>
+
+        <div class="cal-section">Courbes</div>
+        <div id="panel-charts">
+        <div class="chart-lbl">VITESSE (m/s)</div>
+        <canvas class="chart-c" id="chart-speed" width="200" height="70"></canvas>
+        <div class="chart-lbl">V_LATERAL (dérapage)</div>
+        <canvas class="chart-c" id="chart-vlat" width="200" height="70"></canvas>
+        <div class="chart-lbl">VITALITÉ</div>
+        <canvas class="chart-c" id="chart-vie" width="200" height="16"></canvas>
+        </div>
+      </section>
+
+      <!-- ---- Virage ---- -->
+      <section class="volet" id="volet-virage">
+        <div id="panel-virage">
+        <div class="cal-titre">Forme du virage</div>
+        <div class="vir-aide">Tiens un virage à fond 2 à 3 s, puis relâche : la mesure s'affiche.</div>
+
+        <div class="cal-section">Trajectoire</div>
+        <canvas id="vir-trace" width="230" height="200"></canvas>
+        <div class="vir-legende">● départ · ○ fin de l'entrée · pointillé : cercle final</div>
+
+        <div class="cal-section">Courbure le long du virage</div>
+        <canvas id="vir-courbure" width="230" height="90"></canvas>
+        <div class="vir-legende">zone bleue : entrée · montée lente : escargot · palier : cercle</div>
+
+        <div class="cal-section">Mesures</div>
+        <div class="cal-row"><span class="cal-lbl">Entrée</span><span class="cal-val" id="vir-entree">–</span></div>
+        <div class="cal-row"><span class="cal-lbl">Rayon d'entrée</span><span class="cal-val" id="vir-r-entree">–</span></div>
+        <div class="cal-row"><span class="cal-lbl">Rayon final</span><span class="cal-val" id="vir-r-final">–</span></div>
+        <div class="cal-row"><span class="cal-lbl">Escargot</span><span class="cal-val" id="vir-resserrement">–</span></div>
+        <div class="cal-row"><span class="cal-lbl">Cercle atteint</span><span class="cal-val" id="vir-cercle">–</span></div>
+
+        <div class="cal-section">Vitesse</div>
+        <div class="cal-row"><span class="cal-lbl">Part de la vitesse max</span><span class="cal-val" id="vir-pct">–</span></div>
+        <div class="vir-barre"><div id="vir-pct-barre"></div></div>
+        <div class="cal-row"><span class="cal-lbl">Accélération</span><span class="cal-val" id="vir-accel">–</span></div>
+        <div class="cal-row"><span class="cal-lbl">10 → 90 % de vmax</span><span class="cal-val" id="vir-chrono">–</span></div>
+
+        <div class="cal-section">Volant</div>
+        <div class="aide">Ces deux réglages ne touchent pas à la tenue de route, mais
+          au <i>temps</i> que met le volant à bouger. C'est là que se joue le côté
+          « mécanique » ou non de la conduite.</div>
+        <div class="cal-row"><span class="cal-lbl">Montée (longueur d'entrée)</span><span class="cal-val" id="val-steer-ramp">0.00 s</span></div>
+        <input type="range" id="sl-steer-ramp" min="0" max="1.5" step="0.05" value="0">
+        <div class="aide">Secondes pour atteindre le braquage maximum. À 0 la voiture
+          braque à fond instantanément (très arcade, nerveux) ; à 0,3–0,5 elle
+          « rentre » progressivement dans le virage.</div>
+        <div class="cal-row"><span class="cal-lbl">Retour</span><span class="cal-val" id="val-steer-return">0.00 s</span></div>
+        <input type="range" id="sl-steer-return" min="0" max="1" step="0.05" value="0">
+        <div class="aide">Secondes pour que le volant revienne droit quand tu lâches.
+          À 0 il se recentre d'un coup.</div>
+
+        <div class="cal-section">Dérapage</div>
+        <div class="aide">L'angle de dérive est l'écart entre le nez de la voiture et
+          la direction réelle où elle va. Tout ce qui suit se règle sur cet angle.</div>
+        <div class="cal-row"><span class="cal-lbl">Seuil d'entrée (dérive)</span><span class="cal-val" id="val-drift-enter">0°</span></div>
+        <input type="range" id="sl-drift-enter" min="3" max="30" step="1" value="11">
+        <div class="aide">Angle à partir duquel on est déclaré en dérapage (traces,
+          effets, charge de mini-turbo). Bas = ça dérape pour un rien.</div>
+        <div class="cal-row"><span class="cal-lbl">Seuil de sortie (dérive)</span><span class="cal-val" id="val-drift-exit">0°</span></div>
+        <input type="range" id="sl-drift-exit" min="1" max="20" step="1" value="6">
+        <div class="aide">Angle en dessous duquel le dérapage s'arrête. Le garder
+          nettement sous le seuil d'entrée évite que l'état clignote sans arrêt.</div>
+        <div class="cal-row"><span class="cal-lbl">Survirage</span><span class="cal-val" id="val-drift-boost">0.00</span></div>
+        <input type="range" id="sl-drift-boost" min="0" max="1" step="0.05" value="0.45">
+        <div class="aide">Rotation <i>supplémentaire</i> pendant la glisse : l'arrière
+          part davantage. Le seul terme déstabilisant — au-delà de l'amortissement
+          ci-dessous, la voiture part en toupie.</div>
+        <div class="cal-row"><span class="cal-lbl">Amortissement (recalage nez)</span><span class="cal-val" id="val-yaw-damp">0.0</span></div>
+        <input type="range" id="sl-yaw-damp" min="0.3" max="4" step="0.1" value="1.6">
+        <div class="aide">Force avec laquelle les pneus arrière ramènent le nez dans
+          l'axe. Haut = la voiture se rattrape seule ; bas = elle reste en travers.
+          C'est le contrepoids du survirage.</div>
+        <div class="cal-row"><span class="cal-lbl">Autorité de braquage (rayon)</span><span class="cal-val" id="val-turn-lat">0.0</span></div>
+        <input type="range" id="sl-turn-lat" min="10" max="45" step="1" value="25">
+        <div class="aide">Accélération latérale que le conducteur peut demander. Elle
+          fixe le rayon minimum <i>en vitesse</i> : rayon ≈ vitesse² ÷ cette valeur.
+          C'est elle qui domine en ligne droite rapide.</div>
+        <div class="cal-row"><span class="cal-lbl">Vitesse de rotation max</span><span class="cal-val" id="val-turn-speed">0.00</span></div>
+        <input type="range" id="sl-turn-speed" min="1" max="6" step="0.1" value="3.5">
+        <div class="aide">Plafond de rotation en rad/s, qui domine à basse vitesse :
+          c'est lui qui décide à quel point on pivote serré au ralenti.</div>
+        </div>
+      </section>
+
+      <!-- ---- Pouvoirs ---- -->
+      <section class="volet" id="volet-pouvoirs">
+        <div id="pw-corps"></div>
+      </section>
+
+      <!-- ---- Mesures ---- -->
+      <section class="volet" id="volet-mesures">
+        <div id="overlay-debug">
+        <div id="overlay-debug-titre">EQUILIBRAGE</div>
+        <div class="ov-ligne">
+        <span class="ov-lbl">Vitesse</span>
+        <span class="ov-val" id="ov-speed">0.00 u/s</span>
+        </div>
+        <div class="ov-ligne">
+        <span class="ov-lbl">v_lateral</span>
+        <span class="ov-val" id="ov-vlat">0.00 u/s</span>
+        </div>
+        <div class="ov-ligne">
+        <span class="ov-lbl">Dérapage</span>
+        <span class="ov-val" id="ov-drift">NON</span>
+        </div>
+        <div class="ov-ligne">
+        <span class="ov-lbl">Voxels</span>
+        <span class="ov-val" id="ov-voxels">– / –</span>
+        </div>
+        <div class="ov-ligne">
+        <span class="ov-lbl">Chocs</span>
+        <span class="ov-val" id="ov-chocs">0 (Δv: –)</span>
+        </div>
+        <div class="ov-ligne">
+        <span class="ov-lbl">FPS</span>
+        <span class="ov-val" id="ov-fps">–</span>
+        </div>
+        <div class="ov-ligne">
+        <span class="ov-lbl">Blocs visibles</span>
+        <span class="ov-val" id="ov-blocs">–</span>
+        </div>
+        <div class="ov-ligne">
+        <span class="ov-lbl">Position</span>
+        <span class="ov-val" id="ov-pos">(0, 0)</span>
+        </div>
+        </div>
+        <div id="debug-phys">
+        <div id="debug-phys-titre">
+        <span>Physique V5</span>
+        <span id="debug-phys-chevron">▾</span>
+        </div>
+        <div id="debug-phys-corps">
+        <div class="debug-ligne">
+        <span class="debug-lbl">Velocity</span>
+        <span class="debug-val">(<span id="dbg-vx">0.00</span>, <span id="dbg-vz">0.00</span>)</span>
+        </div>
+        <div class="debug-ligne">
+        <span class="debug-lbl">|v| m/s</span>
+        <span class="debug-val" id="dbg-speed">0.00</span>
+        </div>
+        <div class="debug-ligne">
+        <span class="debug-lbl">v_forward</span>
+        <span class="debug-val" id="dbg-vfwd">0.00</span>
+        </div>
+        <div class="debug-ligne">
+        <span class="debug-lbl">v_lateral</span>
+        <span class="debug-val" id="dbg-vlat">0.00</span>
+        </div>
+        <div class="debug-ligne">
+        <span class="debug-lbl">Angle</span>
+        <span class="debug-val" id="dbg-angle">0.0°</span>
+        </div>
+        <div class="debug-ligne">
+        <span class="debug-lbl">Dérive / seuil</span>
+        <span class="debug-val" id="dbg-threshold">—</span>
+        </div>
+        <div class="debug-ligne">
+        <span class="debug-lbl">Dérapage</span>
+        <span id="dbg-drift" style="font-weight:700;color:#44ff99">NON</span>
+        </div>
+        <div class="debug-ligne">
+        <span class="debug-lbl">Élévation</span>
+        <span class="debug-val" id="dbg-elevation">0.00</span>
+        </div>
+        <div class="debug-ligne">
+        <span class="debug-lbl">Terrain</span>
+        <span class="debug-val" id="dbg-terrain">—</span>
+        </div>
+        <div class="debug-ligne">
+        <span class="debug-lbl">Vertical</span>
+        <span class="debug-val" id="dbg-vy">au sol</span>
+        </div>
+        <div class="debug-ligne">
+        <span class="debug-lbl">Réception</span>
+        <span class="debug-val" id="dbg-reception">—</span>
+        </div>
+        <div class="debug-ligne">
+        <span class="debug-lbl">Effets</span>
+        <span class="debug-val" id="dbg-effets">OFF (E)</span>
+        </div>
+        <hr class="sep" style="margin:6px 0">
+        <div style="opacity:0.7;font-size:11px;margin-bottom:2px">
+        Adhérence grip_stat : <b id="grip-val">0.50</b>
+        </div>
+        <div style="opacity:0.45;font-size:10px;margin-bottom:3px">
+        bas = dérapage facile · haut = kart stable
+        </div>
+        <input type="range" id="slider-grip" min="1" max="8" step="0.1" value="1.6">
+        <div style="margin-top:6px;font-size:10px;opacity:0.45;line-height:1.5">
+        flèche bleue = velocity · flèche orange = angle
+        </div>
+        </div>
+        </div>
+      </section>
+
+    </div>
+  </div>
+
+  <!-- Boutons de contrôle tactile -->
+  <div id="ctrl-boutons">
+    <button class="ctrl-btn" id="btn-ctrl-frein">Frein</button>
+    <button class="ctrl-btn" id="btn-ctrl-reculer">Reculer</button>
+  </div>
+
+  <!-- HUD bas — vitesse + drift + contrôles -->
+  <div id="hud-bas">
+    <span>⚡ <b id="speed-val">0.0</b> u/s</span>
+    <span id="drift-label">DÉRAPAGE</span>
+    <span class="controles-hint">← → ↓ frein · R map · V véhicule · D debug</span>
+  </div>
+
+
+
+
+
+
+  <!-- Panel résultats de session -->
+  <div id="panel-session">
+    <div class="sess-titre">Résultats du tour</div>
+    <div class="sess-stat"><span>Temps</span><span class="sess-val" id="sess-temps">–</span></div>
+    <div class="sess-stat"><span>Vitesse max</span><span class="sess-val" id="sess-vitmax">–</span></div>
+    <div class="sess-stat"><span>Vitesse moy.</span><span class="sess-val" id="sess-vitmoy">–</span></div>
+    <div class="sess-stat"><span>Voxels perdus</span><span class="sess-val" id="sess-voxels">–</span></div>
+  </div>
+
+  <!-- Bandeau arrivée -->
+  <div id="banner">Arrivée !</div>
+
+  <!-- Écran de démarrage -->
+  <div id="ecran-demarrage">
+    <div id="demarrage-corps">
+      <h1>Pop Vroum — Test V5</h1>
+      <p>Mode solo · pas de lobby · pas de réseau</p>
+
+      <div id="demarrage-vehicule">
+        <div id="demarrage-vehicule-header">
+          <span id="demarrage-nom-vehicule" style="font-weight:700;color:#ffd166">Génération…</span>
+          <button id="btn-reroll" title="Autre véhicule">↺</button>
+        </div>
+        <div id="demarrage-couleurs"></div>
+        <div id="demarrage-stats"></div>
+      </div>
+
+      <div id="source-vehicule"></div>
+
+      <button id="btn-lancer">▶ Lancer</button>
+    </div>
+  </div>
+
+  <!-- Overlay chargement -->
+  <div id="loading" style="display:none">
+    <div>Chargement…</div>
+    <div id="loading-bar-wrap">
+      <div id="loading-bar"></div>
+    </div>
+    <div id="loading-msg" style="font-size:13px;"></div>
+  </div>
+
+  <script type="module" src="js/pages/test-v5-page.js"></script>
+</body>
+</html>

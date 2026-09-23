@@ -10,16 +10,29 @@
   "powers": {
     "aspiration": {
       "magnitudePerRedVoxel": 0.5,
-      "boostStrength": 1.3
+      "boostStrength": 1.3,
+      "offset": 1.0,
+      "sizeBase": 1.5,
+      "sizeParPoint": 0.8,
+      "halfWidthRatio": 0.6
     },
     "phares": {
       "magnitudePerGreenVoxel": 0.3,
-      "gripBoost": 1.2
+      "gripBoost": 1.2,
+      "offset": 1.0,
+      "lengthBase": 3.0,
+      "lengthParPoint": 1.5,
+      "radiusBase": 1.0,
+      "radiusParPoint": 0.5
     },
     "sillage": {
       "magnitudePerBlueVoxel": 0.4,
       "lifetimeSec": 7,
-      "accelBoost": 1.2
+      "accelBoost": 1.2,
+      "radiusBase": 0.8,
+      "radiusParPoint": 0.3,
+      "emitPeriodSec": 0.15,
+      "emitMinSpeed": 1.0
     },
     "shield": {
       "magnitudePerOrangeVoxel": 0.4,
@@ -48,24 +61,50 @@
     }
   },
   "physics": {
-    "DAMAGE_THRESHOLD": 4,
-    "turnRate": 2.2,
-    "driftThreshold": 1.6,
-    "driftFriction": 0.72,
-    "brakingDecel": 18.0,
-    "naturalDecel": 4.0,
-    "accelRate": 6.0,
+    "DAMAGE_THRESHOLD": 2,
 
     "mass":                800,
-    "engineBase":          2500,
-    "gripBase":            12.0,
-    "dragCoeff":           1.8,
-    "vmaxGlobal":          35.0,
+    "vmaxGlobal":          13.0,
+
+    "engineAccel":         8.0,
+    "brakeAccel":          12.0,
+    "reverseAccel":        3.5,
+    "rollingResist":       0.8,
+    "vmaxOverhead":        1.25,
+
+    "gripAccel":           16.0,
+    "slipPeakDeg":         10.0,
+    "tireTailFloor":       0.55,
+    "driftEnterDeg":       11.0,
+    "driftExitDeg":        6.0,
+
     "turnSpeed":           3.5,
-    "driftGripMultiplier": 0.20,
-    "driftThresholdFactor":1.2,
-    "minDriftSpeed":       3.0,
-    "driftRotationBoost":  0.8,
+    "turnRampSpeed":       2.5,
+    "turnLatAccel":        25.0,
+    "turnGripMinSpeed":    2.0,
+    "yawDamping":          1.6,
+    "yawDampSlipDeg":      40.0,
+    "minDriftSpeed":       1.5,
+    "driftRotationBoost":  0.45,
+
+    "driftBoostMinTime":   0.5,
+    "driftBoostMaxTime":   2.0,
+    "driftBoostSpeed":     3.0,
+
+    "steerRampTime":       0.3,
+    "steerReturnTime":     0.0,
+
+    "rollGain":            0.05,
+    "rollMax":             0.30,
+    "rollStiffness":       90.0,
+    "rollDamping":         9.0,
+
+    "speedStatMin":        0.78,
+    "speedStatMax":        1.3,
+    "gripStatMin":         0.75,
+    "gripStatMax":         1.35,
+    "accelStatMin":        0.7,
+    "accelStatMax":        1.4,
     "BUMP_IMPULSE":        5.0,
     "GRAVITY":             18.0,
     "SLOPE_GRAVITY_FACTOR": 0.35,
@@ -74,10 +113,10 @@
     "LAND_ALIGN_TOLERANCE": 0.15,
     "LAND_MAX_SPEED_LOSS":  0.45,
     "PITCH_FACTOR":         0.12,
-    "BUMP_REF_SPEED":       12.0,
+    "BUMP_REF_SPEED":       6.0,
     "AIR_CONTROL_MIN_HEIGHT": 0.25,
     "LANDING_SHAKE":        0.25,
-    "BOOST_ACCEL":          14.0,
+    "BOOST_ACCEL":          7.0,
     "STICKY_DRAG":          1.6,
     "BOOST_ZOOM":           3.0,
     "STICKY_ZOOM":          2.5,
@@ -85,12 +124,16 @@
     "CUBE_FRICTION":        3.2,
     "CUBE_CHAIN_TRANSFER":  0.85,
     "CUBE_PUSH_CONTINU":    4.0,
-    "POLE_BREAK_THRESHOLD": 5.0,
-    "REVERSE_SPEED_THRESHOLD": 0.1,
+    "POLE_BREAK_THRESHOLD": 2.5,
     "restitution":         0.5,
+    "wallBounceGrazing":   0.5,
+    "wallBounceHeadOn":    0.05,
+    "wallFriction":        0.12,
     "accelGripTransfer":   0.15,
     "brakeGripTransfer":   0.20,
-    "RENDER_DISTANCE":     3
+    "RENDER_DISTANCE":     3,
+    "WALL_TOP_LEVEL":      1.2,
+    "GAME_OVER_VOXELS":    0
   },
   "surfaceGrip": {
     "dur":    1.0,
@@ -101,12 +144,31 @@
   "cohesion": {
     "radiusUnits": 8,
     "fullThreshold": 0.8,
-    "fullBonusMultiplier": 1.15
+    "fullBonusMultiplier": 1.15,
+    "halo": {
+      "enabled": true,
+      "height": 3.2,
+      "margin": 2.0,
+      "rayonMin": 3.0,
+      "colorProche": "#66ff99",
+      "colorLoin": "#ff6b6b",
+      "opacity": 0.5,
+      "opacitySol": 0.3,
+      "segments": 56,
+      "fadeSpeed": 4.0
+    }
   },
   "map": {
     "gridCols": 8,
     "gridRows": 8,
-    "blockScale": 2
+    "blockScale": 2,
+    "fence": {
+      "enabled": true,
+      "margin": 0,
+      "height": 3.0,
+      "color": "#8ad8ff",
+      "opacity": 0.22
+    }
   },
   "solo": {
     "WIN_RADIUS": 4.0,
