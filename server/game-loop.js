@@ -1,11 +1,17 @@
 // Boucle de jeu autoritaire côté serveur.
 //
-// Physique V2 : utilise les mêmes modules que le client (physics.js, collision.js).
-// Map : générée via map-generator.js (mode graph + SOLO-05 entry/exit).
+// La conduite passe par game/vehicle-tick.js, le même module que le solo
+// (test-v5) : sauts, rampes, bosses, cubes poussables, poteaux cassables, aide
+// couloir. Le serveur fait aussi autorité sur la perte de voxels (game/damage.js)
+// et sur l'état des cubes et poteaux (game/world-objects.js).
+//
+// Déroulé d'un match : « attente » (les joueurs passent de la page lobby à la
+// page de jeu, personne ne bouge) → « decompte » → « course ».
 //
 // API publique :
 //   startMatch(matchId, players, io, roomId) → Promise<{map, playerInfos}>
 //   rejoinPlayer(matchId, playerId, newSocketId, socket) → boolean
+//   getSnapshot(matchId)                      → état courant (pour un rejoin)
 //   applyInput(matchId, socketId, inputs)     → void
 //   stopMatch(matchId)                        → void
 //   getMatch(matchId)                         → MatchState | null
@@ -17,24 +23,25 @@ import { fileURLToPath }     from 'url';
 import * as MatchEnd         from './match-end.js';
 
 // Modules partagés client/serveur (pur JS, pas de dépendances navigateur)
-import {
-  setConfig as setPhysicsConfig,
-  decompose, computeForces, detectDrift, computeTurnRate,
-  applyBounce, checkDamage, createState, tickDriftCharge, rampSteering,
-} from '../public/js/modules/game/physics.js';
-import { checkTerrain, boundsFromExtent, setConfig as setCollisionConfig } from '../public/js/modules/game/collision.js';
+import { setConfig as setPhysicsConfig } from '../public/js/modules/game/physics.js';
+import { boundsFromExtent, setConfig as setCollisionConfig } from '../public/js/modules/game/collision.js';
 import {
   setConfig as setPowersConfig,
-  createPowerState, createPowerWorld, computeEffects, foldEffects, absorbDamage,
+  createPowerState, createPowerWorld, computeEffects, foldEffects,
 } from '../public/js/modules/game/power-effects.js';
 import {
   setConfig as setMapGenConfig,
   generate  as generateMapData,
-  getSurfaceGrip,
   dedupePoolById,
   prepareBlockForGame,
   BLOCK_SIZE,
 } from '../public/js/modules/game/map-generator.js';
+import { createVehicleSim, tickVehicle } from '../public/js/modules/game/vehicle-tick.js';
+import { resolveCollision, rebuildPowerState } from '../public/js/modules/game/damage.js';
+import { createWorldObjects, findBlockAt } from '../public/js/modules/game/world-objects.js';
+import { buildNavGrid } from '../public/js/modules/game/navigation.js';
+import * as movables from '../public/js/modules/game/movables.js';
+import { statsFromGrid } from '../public/js/modules/voxel/stats.js';
 
 const __dirname  = dirname(fileURLToPath(import.meta.url));
 const TICK_RATE  = 30;
@@ -49,6 +56,10 @@ async function _chargerConfig() {
   if (_config) return _config;
   const raw = await readFile(join(__dirname, '..', 'config', 'gameplay.json'), 'utf-8');
   _config = JSON.parse(raw);
+
+  // Hauteur de plateau : vit dans layout.json (partagée avec le rendu client)
+  const layout = JSON.parse(await readFile(join(__dirname, '..', 'config', 'layout.json'), 'utf-8'));
+  _config.plateauHeight = layout.PLATEAU_HEIGHT ?? 0.5;
 
   // Injecter la config dans les modules partagés
   setPhysicsConfig({ ..._config.vehicleStats, ..._config.physics });
@@ -123,23 +134,57 @@ function _aPassageColonne(grid, gx, gzMin, gzMax) {
   return false;
 }
 
-// ---- Rotation 90° CW (post-génération, pour mouvement en +X) ----
+// ---- Véhicule reçu du lobby ----
 
-function _rotate90CW(grid) {
-  const n = grid.length;
-  const result = Array.from({ length: n }, () => Array(n).fill(null));
-  for (let gz = 0; gz < n; gz++) {
-    for (let gx = 0; gx < n; gx++) {
-      result[gx][n - 1 - gz] = grid[gz][gx];
+const COULEURS = new Set(['red', 'green', 'blue', 'orange', 'violet', 'pink']);
+
+// Grille 8×4×4 nettoyée : seules des cellules { color } connues passent. Le
+// véhicule arrive d'un navigateur ; une grille malformée ferait planter la
+// boucle pour tout le monde. Renvoie null si la forme n'est pas la bonne.
+function _grilleValide(grid) {
+  if (!Array.isArray(grid) || grid.length !== 8) return null;
+  const propre = [];
+  for (let x = 0; x < 8; x++) {
+    if (!Array.isArray(grid[x]) || grid[x].length !== 4) return null;
+    propre.push([]);
+    for (let z = 0; z < 4; z++) {
+      if (!Array.isArray(grid[x][z]) || grid[x][z].length !== 4) return null;
+      propre[x].push(grid[x][z].map(c => (c && COULEURS.has(c.color)) ? { color: c.color } : null));
     }
   }
-  return result;
+  return propre;
 }
 
-// ---- Constantes physique serveur ----
+/**
+ * Véhicule tel que le serveur le suit pendant le match : stats et pouvoirs
+ * recalculés depuis la grille (mêmes règles que le client), plus les copies
+ * d'origine dont resolveImpact a besoin.
+ */
+function _preparerVehicule(brut, cfg) {
+  const grid = _grilleValide(brut?.grid);
+  if (!grid) {
+    // Sans grille exploitable : véhicule neutre, qui ne perd pas de voxels
+    const vs = cfg.vehicleStats;
+    const stats = { speed: vs.baseSpeed, grip: vs.baseGrip, accel: vs.baseAccel };
+    return { grid: null, stats, powers: {}, originalStats: stats, originalPowers: {} };
+  }
+  const { stats, powers } = statsFromGrid(grid, cfg);
+  return {
+    grid,
+    originalGrid:   grid.map(col => col.map(row => [...row])),
+    stats,          originalStats:  { ...stats },
+    powers,         originalPowers: { ...powers },
+  };
+}
 
-const STUCK_THRESHOLD       = 0.4;  // secondes avant déclenchement du recul
-const AUTO_REVERSE_DURATION = 0.8;  // secondes de recul automatique
+// Stats normalisées (1 = aucun voxel de la couleur), même calcul que test-v5
+function _statsNormalisees(vehicule, vs) {
+  return {
+    speed: vehicule.originalStats.speed / vs.baseSpeed,
+    grip:  vehicule.originalStats.grip  / vs.baseGrip,
+    accel: vehicule.originalStats.accel / vs.baseAccel,
+  };
+}
 
 // ---- Gestion des matchs ----
 
@@ -168,282 +213,256 @@ export async function startMatch(matchId, players, io, roomId) {
   // checkVictory ne teste qu'une distance au bloc d'arrivée.
   const fenceBounds = boundsFromExtent(mapData.worldExtent, cfg.map?.fence);
 
+  // Cubes et poteaux : recensés avant l'envoi de la map, pour que les cellules
+  // de cube portent déjà leur position réelle chez tout le monde.
+  const objets = createWorldObjects(mapData);
+
+  const physCfg = cfg.physics;
+  const world = {
+    blocks:        mapData.blocks,
+    blockScale,
+    bounds:        fenceBounds,
+    nav:           buildNavGrid(mapData),
+    consts:        physCfg,
+    plateauHeight: cfg.plateauHeight,
+    vehicleScale:  physCfg.vehicleScale ?? 0.28,
+    // La liste des cubes ne change pas, seules leurs positions : un tableau se
+    // parcourt autant de fois qu'il faut, un itérateur de Map une seule.
+    cubes:         [...objets.cubes.values()],
+    poles:         objets.poles,
+  };
+
   const playerStates = new Map();
   const socketMap    = new Map();
   const playerInfos  = [];
 
-  const soloCfg  = cfg.solo ?? {};
-  const physCfg  = cfg.physics;
-
   players.forEach((p, i) => {
-    const stats    = p.vehicle?.stats ?? {};
     const playerId = p.vehicle?.id ?? `player_${i}_${Date.now()}`;
-
     socketMap.set(p.socketId, playerId);
 
     // SOLO-05 : spawn aux positions calculées dans le bloc départ
     const spawnPos = mapData.entry?.spawnPositions?.[i]
                   ?? mapData.entry?.spawnPositions?.[0]
                   ?? mapData.startPosition;
+    const sim = createVehicleSim({
+      x: spawnPos.x, z: spawnPos.z,
+      angle: spawnPos.angle ?? mapData.startPosition?.angle ?? 0,
+    });
+
+    const vehicule = _preparerVehicule(p.vehicle, cfg);
 
     playerStates.set(playerId, {
       playerId,
       playerName:   p.playerName,
-      vehicleStats: {
-        speed: stats.speed ?? cfg.vehicleStats.baseSpeed,
-        grip:  stats.grip  ?? cfg.vehicleStats.baseGrip,
-        accel: stats.accel ?? cfg.vehicleStats.baseAccel,
-      },
-      // Pouvoirs : le serveur fait autorité (prd_pouvoirs.md §8). Les valeurs
-      // arrivaient déjà avec le véhicule au lobby:join, elles n'étaient
-      // simplement pas conservées.
-      powerState: createPowerState(p.vehicle?.powers ?? {}),
-      physicsState: {
-        position:  { x: spawnPos.x, z: spawnPos.z },
-        velocity:  { x: 0, z: 0 },
-        angle:     mapData.startPosition?.angle ?? 0,
-        speed:     0,
-        drifting:  false,
-        elevation: 0,
-      },
+      vehicule,
+      baseStats:    _statsNormalisees(vehicule, cfg.vehicleStats),
+      // Pouvoirs : le serveur fait autorité (prd_pouvoirs.md §8)
+      powerState:   createPowerState(vehicule.powers),
+      sim,
+      // Alias lu par match-end et la cohésion : la voiture de la simulation
+      physicsState: sim.car,
       latestInputs: { steering: 0, braking: 0, reversing: 0 },
       connected:    true,
-      terrainState: { lastTerrain: null, onRamp: false, boostTimer: 0, rampTimer: 0 },
-      stuckTimer:       0,
-      autoReverseTimer: 0,
+      // Passé à true quand la page de jeu de ce joueur s'est reconnectée
+      rejoint:      false,
     });
 
     playerInfos.push({
       playerId,
       socketId:   p.socketId,
       playerName: p.playerName,
-      vehicle:    p.vehicle,
+      // La grille nettoyée remplace celle reçue : tout le monde part de la même
+      vehicle:    { ...(p.vehicle ?? {}), grid: vehicule.grid },
     });
   });
-
-  let lastTick = Date.now();
 
   // Traînées de sillage du match. Elles vivent ici et pas dans le module :
   // le serveur fait tourner plusieurs matchs à la fois.
   const powerWorld = createPowerWorld();
 
-  const intervalId = setInterval(() => {
-    const now = Date.now();
-    const dt  = Math.min((now - lastTick) / 1000, 0.1);
-    lastTick  = now;
-
-    // ---- Pouvoirs : une seule passe, avant la physique ----
-    // Les effets sont recalculés à chaque tick puis repliés dans les stats au
-    // moment du calcul des forces. Ils ne sont jamais écrits dans
-    // ps.vehicleStats : c'est ce qui les empêche de se cumuler d'une frame à
-    // l'autre, défaut de l'ancien applyEffects() côté client.
-    const vuePouvoirs = [...playerStates.values()].map(ps => ({
-      id:       ps.playerId,
-      position: ps.physicsState.position,
-      angle:    ps.physicsState.angle,
-      speed:    ps.physicsState.speed,
-      power:    ps.powerState,
-    }));
-    const { effects } = computeEffects(vuePouvoirs, powerWorld, dt, now / 1000);
-    const effetsParJoueur = foldEffects(effects);
-
-    for (const ps of playerStates.values()) {
-      _tickJoueur(
-        ps, mapData, blockScale, dt, cfg, fenceBounds,
-        effetsParJoueur[ps.playerId] ?? null,
-      );
-    }
-
-    const positions = [...playerStates.values()].map(ps => ps.physicsState.position);
-    const cohesion  = _calculerCohesion(positions, cfg.cohesion);
-
-    const playersPayload = {};
-    for (const [pid, ps] of playerStates) {
-      const vel = ps.physicsState.velocity;
-      const velocityAngle = Math.atan2(vel.x, vel.z);
-      let driftAngle = velocityAngle - ps.physicsState.angle;
-      if (driftAngle >  Math.PI) driftAngle -= 2 * Math.PI;
-      if (driftAngle < -Math.PI) driftAngle += 2 * Math.PI;
-
-      playersPayload[pid] = {
-        playerName: ps.playerName,
-        position:   { ...ps.physicsState.position },
-        velocity:   { x: vel.x, z: vel.z },
-        angle:      ps.physicsState.angle,
-        speed:      ps.physicsState.speed,
-        drifting:   ps.physicsState.drifting,
-        driftAngle,
-        elevation:  ps.physicsState.elevation ?? 0,
-        // Ce qui agit sur moi en ce moment — le client s'en sert pour les
-        // flashs et les halos, au lieu de redétecter chacun dans son coin.
-        effects:    _payloadEffets(effetsParJoueur[pid]),
-        shield:     _payloadBouclier(ps.powerState),
-      };
-    }
-
-    io.to(roomId).emit('game:state', { matchId, players: playersPayload, cohesion });
-
-    MatchEnd.checkVictory(match);
-  }, TICK_MS);
-
-  const match = { id: matchId, playerStates, socketMap, map: mapData, intervalId, roomId, io, cfg };
+  const match = {
+    id: matchId, playerStates, socketMap, map: mapData, roomId, io, cfg,
+    world, powerWorld,
+    // Ids de tous les poteaux au départ : world.poles perd ceux qui tombent
+    polesInitiaux: [...objets.poles.keys()],
+    phase:      'attente',
+    attenteFin: Date.now() + (cfg.match?.waitForPlayersSec ?? 20) * 1000,
+    departA:    null,
+    lastTick:   Date.now(),
+    intervalId: null,
+  };
+  match.intervalId = setInterval(() => _tickMatch(match), TICK_MS);
   matches.set(matchId, match);
   console.log(`Match ${matchId} démarré — ${players.length} joueur(s), map ${mapData.gridCols}×${mapData.gridRows}`);
 
   return { map: mapData, playerInfos };
 }
 
-// ---- Tick physique V2 par joueur ----
+// ---- Tick d'un match ----
 
-function _tickJoueur(ps, map, blockScale, dt, cfg, bounds = null, powerEffects = null) {
-  const state    = ps.physicsState;
-  const inputs   = ps.latestInputs;
-  const ts       = ps.terrainState;
-  const physConsts = cfg.physics;
+function _tickMatch(match) {
+  const { playerStates, world, cfg, io, roomId } = match;
+  const matchId = match.id;
+  const now = Date.now();
+  const dt  = Math.min((now - match.lastTick) / 1000, 0.1);
+  match.lastTick = now;
 
-  // Détection terrain via collision.js partagé
-  const terrain = checkTerrain(state.position, map.blocks, blockScale, state.elevation, null, bounds);
+  _avancerPhase(match, now);
+  const enCourse = match.phase === 'course';
+  const events   = [];
 
-  // Effets de terrain
-  if (terrain) {
-    if (terrain.softTerrain === 'boost' && ts.lastTerrain !== 'boost') ts.boostTimer = 1.5;
-    if (terrain.softTerrain === 'ramp') {
-      ts.onRamp = true;
-    } else if (ts.onRamp) {
-      ts.rampTimer = 1.0;
-      ts.onRamp    = false;
+  // ---- Pouvoirs : une seule passe, avant la physique ----
+  // Les effets sont recalculés à chaque tick puis repliés dans les stats par
+  // vehicle-tick. Ils ne sont jamais écrits dans les stats du véhicule : c'est
+  // ce qui les empêche de se cumuler d'une frame à l'autre.
+  let effetsParJoueur = {};
+  if (enCourse) {
+    const vuePouvoirs = [...playerStates.values()].map(ps => ({
+      id:       ps.playerId,
+      position: ps.sim.car.position,
+      y:        ps.sim.car.y ?? 0,
+      angle:    ps.sim.car.angle,
+      speed:    ps.sim.car.speed,
+      power:    ps.powerState,
+    }));
+    const { effects } = computeEffects(vuePouvoirs, match.powerWorld, dt, now / 1000);
+    effetsParJoueur = foldEffects(effects);
+
+    for (const ps of playerStates.values()) {
+      const ev = tickVehicle(ps.sim, ps.latestInputs, world, dt, {
+        stats: ps.baseStats,
+        fx:    effetsParJoueur[ps.playerId],
+      });
+      _traiterEvenements(ps, ev, world, cfg, events);
     }
-    // SOLO-04 : bosse → pas d'impulsion Y sur serveur (2D), mais le bump est détecté comme softTerrain
-    ts.lastTerrain = terrain.softTerrain;
-    ts.boostTimer  = Math.max(0, ts.boostTimer - dt);
-    ts.rampTimer   = Math.max(0, ts.rampTimer  - dt);
 
-    // RACE-C04 : élévation du terrain
-    if (terrain.elevationTarget !== undefined) {
-      state.elevation = state.elevation + (terrain.elevationTarget - state.elevation) * 0.3;
-      if (terrain.elevationTarget === 0 && terrain.softTerrain === null) {
-        state.elevation = Math.max(0, state.elevation - dt * 4);
-      }
-    }
-  } else if (state.elevation > 0) {
-    state.elevation = Math.max(0, state.elevation - dt * 4);
+    // Cubes poussés : ils glissent, frottent, se transmettent l'élan
+    movables.tick(world.cubes, dt, world.blockScale, cfg.physics,
+      (x, z) => findBlockAt(match.map, x, z));
   }
 
-  // Surface grip
-  const surfaceGrip = getSurfaceGrip(terrain?.softTerrain ?? null);
+  const positions = [...playerStates.values()].map(ps => ps.sim.car.position);
+  const cohesion  = _calculerCohesion(positions, cfg.cohesion);
 
-  // Recul automatique si bloqué dans un mur
-  if (ps.autoReverseTimer > 0) {
-    ps.autoReverseTimer -= dt;
-    if (ps.autoReverseTimer <= 0) ps.stuckTimer = 0;
-  } else if (terrain?.hardCollision) {
-    ps.stuckTimer += dt;
-    if (ps.stuckTimer > STUCK_THRESHOLD) {
-      ps.autoReverseTimer = AUTO_REVERSE_DURATION;
-      ps.stuckTimer       = 0;
-    }
-  } else {
-    ps.stuckTimer = 0;
+  const playersPayload = {};
+  for (const [pid, ps] of playerStates) {
+    const car = ps.sim.car;
+    const vel = car.velocity;
+    const velocityAngle = Math.atan2(vel.x, vel.z);
+    let driftAngle = velocityAngle - car.angle;
+    if (driftAngle >  Math.PI) driftAngle -= 2 * Math.PI;
+    if (driftAngle < -Math.PI) driftAngle += 2 * Math.PI;
+
+    playersPayload[pid] = {
+      playerName: ps.playerName,
+      position:   { x: car.position.x, z: car.position.z },
+      velocity:   { x: vel.x, z: vel.z },
+      angle:      car.angle,
+      speed:      car.speed,
+      drifting:   car.drifting,
+      driftAngle,
+      elevation:  car.elevation ?? 0,
+      // Hauteur réelle (sauts, plateaux) et vitesse verticale pour le tangage en vol
+      y:          car.y ?? 0,
+      vy:         car.vy ?? 0,
+      airborne:   !!car.airborne,
+      // Ce qui agit sur moi en ce moment — le client s'en sert pour les
+      // flashs et les halos, au lieu de redétecter chacun dans son coin.
+      effects:    _payloadEffets(effetsParJoueur[pid]),
+      shield:     _payloadBouclier(ps.powerState),
+    };
   }
-  const isAutoReversing = ps.autoReverseTimer > 0;
 
-  // Multiplicateur vitesse max selon terrain
-  const vmaxMult = ts.boostTimer > 0             ? 1.5
-                 : ts.rampTimer  > 0              ? 1.3
-                 : terrain?.softTerrain === 'sticky' ? 0.5
-                 : 1.0;
+  io.to(roomId).emit('game:state', {
+    matchId,
+    phase:     match.phase,
+    // Secondes avant le départ pendant le décompte (null sinon)
+    departDans: match.phase === 'decompte' ? Math.max(0, (match.departA - now) / 1000) : null,
+    players:   playersPayload,
+    cohesion,
+    // Cubes encore en mouvement : les autres n'ont pas bougé depuis le dernier envoi
+    cubes:     _payloadCubes(world.cubes),
+    // Ce qui s'est passé pendant ce tick (chocs, sauts, poteaux…), pour les effets
+    events,
+  });
 
-  // Stats normalisées pour le pipeline de forces.
-  // Les multiplicateurs de pouvoir s'appliquent ici, sur une valeur reconstruite
-  // à chaque tick — jamais sur ps.vehicleStats, qui resterait gonflé à vie.
-  const vs = cfg.vehicleStats;
-  const pw = powerEffects ?? { speedMul: 1, gripMul: 1, accelMul: 1 };
-  const statsNorm = {
-    speed_stat: (ps.vehicleStats.speed / vs.baseSpeed) * vmaxMult * pw.speedMul,
-    grip_stat:  (ps.vehicleStats.grip  / vs.baseGrip)  * pw.gripMul,
-    accel_stat: (ps.vehicleStats.accel / vs.baseAccel) * pw.accelMul,
-  };
+  if (enCourse) MatchEnd.checkVictory(match);
+}
 
-  // Throttle/steering depuis inputs
-  const throttle = isAutoReversing  ? -1
-                 : inputs.reversing ? -1
-                 : inputs.braking   ? -0.8
-                 : 1;
-
-  // ---- Collision dure ----
-  if (terrain?.hardCollision && !isAutoReversing) {
-    if (terrain.pushBack) {
-      const velocityBefore = { x: state.velocity.x, z: state.velocity.z };
-
-      const bounced = applyBounce(
-        state.velocity, terrain.pushBack, physConsts.restitution ?? 0.5, physConsts
-      );
-      state.velocity.x = bounced.x;
-      state.velocity.z = bounced.z;
-      state.speed      = Math.sqrt(bounced.x ** 2 + bounced.z ** 2);
-
-      // Correction de position
-      state.position.x += terrain.pushBack.x;
-      state.position.z += terrain.pushBack.z;
-
-      // Velocity post-rebond → déplacement pour sortir du mur
-      state.position.x += state.velocity.x * dt;
-      state.position.z += state.velocity.z * dt;
-
-      // Amortissement pour éviter les oscillations
-      state.velocity.x *= 0.92;
-      state.velocity.z *= 0.92;
-      state.speed = Math.sqrt(state.velocity.x ** 2 + state.velocity.z ** 2);
-
-      // ---- Orange — Bouclier : il encaisse avant le véhicule ----
-      // checkDamage était importé côté serveur sans jamais être appelé. Le
-      // bouclier s'use ici, et une fois vidé il est perdu pour la partie.
-      // La perte de voxels, elle, reste locale au client (prd_pouvoirs.md §7).
-      if (ps.powerState?.shield?.active) {
-        const nPush = Math.hypot(terrain.pushBack.x, terrain.pushBack.z) || 1;
-        const dmg = checkDamage(velocityBefore, state.velocity, {
-          x: terrain.pushBack.x / nPush,
-          z: terrain.pushBack.z / nPush,
-        }, state.position);
-        if (dmg.damaged) absorbDamage(ps.powerState, dmg.deltaSpeed);
-      }
-    } else {
-      state.velocity.x = 0;
-      state.velocity.z = 0;
-      state.speed      = 0;
+// attente → decompte → course. On attend que chaque joueur ait rechargé sa page
+// de jeu (sinon il partirait sans voir sa voiture), avec un délai maximal pour
+// qu'un joueur perdu en route ne bloque pas les autres.
+function _avancerPhase(match, now) {
+  if (match.phase === 'attente') {
+    // Pas de « || !connected » : en quittant la page lobby, chaque joueur se
+    // déconnecte un instant avant que sa page de jeu ne rejoigne — il serait
+    // compté comme parti et le décompte partirait sans lui.
+    const tousLa = [...match.playerStates.values()].every(ps => ps.rejoint);
+    if (tousLa || now >= match.attenteFin) {
+      match.phase   = 'decompte';
+      match.departA = now + (match.cfg.match?.countdownSec ?? 3) * 1000;
     }
-    // Un choc annule la charge de dérapage : pas de récompense pour une glisse
-    // qui finit dans un mur.
-    state.drifting  = false;
-    state.driftTime = 0;
-  } else {
-    // Pas de collision (ou auto-reverse actif)
-    if (isAutoReversing && terrain?.hardCollision && terrain.pushBack) {
-      state.position.x += terrain.pushBack.x * 2;
-      state.position.z += terrain.pushBack.z * 2;
-    }
-
-    const dec       = decompose(state.velocity, state.angle);
-    const driftInfo = detectDrift(dec, physConsts, statsNorm, surfaceGrip, state.drifting);
-    state.drifting  = driftInfo.is_drifting;
-
-    const newV = computeForces(
-      state, { throttle }, statsNorm, dt, physConsts, driftInfo.lateralGrip
-    );
-    state.velocity.x = newV.x;
-    state.velocity.z = newV.z;
-
-    const steeringEff = rampSteering(state, inputs.steering, dt, physConsts);
-    const turn_rate   = computeTurnRate(steeringEff, dec, driftInfo, physConsts);
-    state.angle      += turn_rate * dt;
-
-    state.position.x += state.velocity.x * dt;
-    state.position.z += state.velocity.z * dt;
-    state.speed       = driftInfo.v_speed;
-
-    // Récompense de sortie de glisse (façon mini-turbo)
-    tickDriftCharge(state, dt, physConsts);
   }
+  if (match.phase === 'decompte' && now >= match.departA) {
+    match.phase = 'course';
+    match.lastTick = now;
+  }
+}
+
+// ---- Événements d'un véhicule ----
+
+function _traiterEvenements(ps, ev, world, cfg, events) {
+  const id = ps.playerId;
+  const physCfg = cfg.physics;
+
+  if (ev.landed)        events.push({ t: 'atterrissage', id, impact: ev.landed.impact });
+  if (ev.boostEntered)  events.push({ t: 'boost', id });
+  if (ev.stickyEntered) events.push({ t: 'collant', id });
+  if (ev.driftCharge?.libere) events.push({ t: 'turbo', id, charge: ev.driftCharge.charge });
+  if (ev.poleBroken)    events.push({ t: 'poteau', poteau: ev.poleBroken.key });
+
+  const c = ev.contact;
+  if (!c) return;
+
+  // Frottement : seulement quand il y a de quoi faire des étincelles
+  if (c.fresh || c.tangentSpeed > (physCfg.scrapeMinSpeed ?? 2)) {
+    events.push({
+      t: 'mur', id, choc: c.fresh,
+      n: [c.normal.x, c.normal.z], v: c.tangentSpeed,
+    });
+  }
+
+  if (!c.fresh || !c.dmg.damaged || !ps.vehicule.grid) return;
+
+  // Choc endommageant : le bouclier encaisse d'abord, puis la carrosserie
+  const res = resolveCollision(
+    ps.vehicule, ps.powerState, c.dmg, ps.sim.car.angle, physCfg.voxelLossSpeed ?? 8,
+  );
+  if (res.absorbed > 0) {
+    events.push({ t: 'bouclier', id, hp: ps.powerState.shield?.hp ?? 0, brise: res.shieldBroken });
+  }
+  if (res.removedVoxels.length > 0) {
+    ps.sim.degats  = res.degats;
+    // Perdre du bleu affaiblit le sillage, du orange le bouclier…
+    ps.powerState  = rebuildPowerState(ps.powerState, ps.vehicule.powers);
+    events.push({
+      t: 'degats', id, dv: c.dmg.deltaSpeed,
+      voxels: res.removedVoxels.map(v => ({ x: v.x, z: v.z, y: v.y, color: v.color })),
+    });
+  }
+}
+
+// Cubes en mouvement : { id, x, z } — null quand tout est immobile. Un cube
+// qui vient de s'arrêter est envoyé une dernière fois, pour que tout le monde
+// ait sa position finale.
+function _payloadCubes(cubes) {
+  const envois = [];
+  for (const c of cubes) {
+    const bouge = c.vx !== 0 || c.vz !== 0;
+    if (bouge || c.bougeait) envois.push({ id: c.id, x: c.mesh.position.x, z: c.mesh.position.z });
+    c.bougeait = bouge;
+  }
+  return envois.length > 0 ? envois : null;
 }
 
 // ---- Sérialisation des pouvoirs pour game:state ----
@@ -499,12 +518,38 @@ export function rejoinPlayer(matchId, playerId, newSocketId, socket) {
   }
 
   match.socketMap.set(newSocketId, playerId);
-  match.playerStates.get(playerId).connected = true;
+  const ps = match.playerStates.get(playerId);
+  ps.connected = true;
+  ps.rejoint   = true;   // sa page de jeu est prête : le départ peut l'attendre
 
   socket.join(match.roomId);
 
   console.log(`Rejoin : ${playerId} → socket ${newSocketId} (match ${matchId})`);
   return true;
+}
+
+/**
+ * État courant d'un match, pour une page qui (re)arrive en cours de route : la
+ * map envoyée au lancement était vierge, ce qui a changé depuis est ici —
+ * voxels perdus, poteaux tombés, cubes déplacés.
+ * @returns {{ phase, vehicules: {[playerId]: grid}, poteauxTombes: string[],
+ *             cubes: Array<{id,x,z}> } | null}
+ */
+export function getSnapshot(matchId) {
+  const match = matches.get(matchId);
+  if (!match) return null;
+  const vehicules = {};
+  for (const [pid, ps] of match.playerStates) vehicules[pid] = ps.vehicule.grid;
+  const poteauxTombes = [];
+  for (const id of match.polesInitiaux) {
+    if (!match.world.poles.has(id)) poteauxTombes.push(id);
+  }
+  return {
+    phase: match.phase,
+    vehicules,
+    poteauxTombes,
+    cubes: match.world.cubes.map(c => ({ id: c.id, x: c.mesh.position.x, z: c.mesh.position.z })),
+  };
 }
 
 /**

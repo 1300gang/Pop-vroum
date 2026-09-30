@@ -136,7 +136,9 @@ io.on('connection', (socket) => {
     }
 
     socketToMatch.set(socket.id, matchId);
-    socket.emit('game:rejoin:ok', { matchId, playerId });
+    // L'état courant accompagne la confirmation : voxels perdus, poteaux tombés
+    // et cubes déplacés depuis l'envoi de la map
+    socket.emit('game:rejoin:ok', { matchId, playerId, snapshot: GameLoop.getSnapshot(matchId) });
   });
 
   // ------------------------------------------------------------------

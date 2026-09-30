@@ -20,9 +20,29 @@ let _onDebugResult = null;
  */
 export async function computeStats(grid) {
   const config = await _chargerConfig();
+  const comptage = _compterVoxels(grid);
+  const { stats, powers } = statsFromGrid(grid, config);
+
+  console.log('[voxel/stats] comptage :', _formaterComptage(comptage));
+  console.log('[voxel/stats] stats :', JSON.stringify(stats));
+  console.log('[voxel/stats] powers :', JSON.stringify(powers));
+
+  if (_onDebugResult) {
+    _onDebugResult({ stats, powers, comptage });
+  }
+  return { stats, powers };
+}
+
+/**
+ * Même calcul que computeStats, sans chargement de config : le serveur (Node)
+ * recalcule ainsi les stats d'un véhicule depuis sa grille, avec les mêmes règles.
+ * @param {Array} grid — grid[x][z][y]
+ * @param {object} config — gameplay.json complet
+ * @returns {{ stats: object, powers: object }}
+ */
+export function statsFromGrid(grid, config) {
   const vs = config.vehicleStats;
   const pw = config.powers;
-
   const comptage = _compterVoxels(grid);
 
   const stats = {
@@ -39,14 +59,6 @@ export async function computeStats(grid) {
     attraction: (comptage.violet || 0) * pw.attraction.magnitudePerVioletVoxel,
     heal:       (comptage.pink   || 0) * pw.heal.magnitudePerPinkVoxel,
   };
-
-  console.log('[voxel/stats] comptage :', _formaterComptage(comptage));
-  console.log('[voxel/stats] stats :', JSON.stringify(stats));
-  console.log('[voxel/stats] powers :', JSON.stringify(powers));
-
-  if (_onDebugResult) {
-    _onDebugResult({ stats, powers, comptage });
-  }
   return { stats, powers };
 }
 

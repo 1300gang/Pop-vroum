@@ -121,15 +121,22 @@ Dimensions : `DIM_X = 8`, `DIM_Z = 4`, `DIM_Y = 4`.
 
 | Module | Ce que le serveur en importe |
 |--------|------------------------------|
-| `game/physics.js` | `setConfig`, `decompose`, `computeForces`, `detectDrift`, `computeTurnRate`, `applyBounce`, `checkDamage`, `createState` |
-| `game/collision.js` | `checkTerrain` |
-| `game/map-generator.js` | `setConfig`, `generate`, `getSurfaceGrip`, `dedupePoolById`, `BLOCK_SIZE` |
+| `game/physics.js` | `setConfig` |
+| `game/collision.js` | `boundsFromExtent`, `setConfig` |
+| `game/map-generator.js` | `setConfig`, `generate`, `dedupePoolById`, `prepareBlockForGame`, `BLOCK_SIZE` |
+| `game/vehicle-tick.js` | `createVehicleSim`, `tickVehicle` — toute la conduite |
+| `game/damage.js` | `resolveCollision`, `rebuildPowerState` — bouclier puis voxels |
+| `game/world-objects.js` | `createWorldObjects`, `findBlockAt` — cubes et poteaux |
+| `game/navigation.js` | `buildNavGrid` — pour l'aide couloir |
+| `game/movables.js` | `tick` — cubes poussés |
+| `game/power-effects.js` | `createPowerState`, `createPowerWorld`, `computeEffects`, `foldEffects` |
+| `voxel/stats.js` | `statsFromGrid` — stats recalculées depuis la grille reçue |
 
 Contrainte : ces modules doivent rester **du JS pur**, sans `document`, `window` ni Three.js, sinon le serveur casse.
 
 **Depuis le 30/09 — `game/vehicle-tick.js`** : la boucle de conduite complète (terrain, sauts, rampes, bosses, boost/collant, recul auto, rebond et frottement contre les murs, cubes poussables, poteaux cassables, aide couloir, forces et glisse) est sortie de `test-v5-page.js` dans ce module pur. `test-v5` l'utilise déjà ; il raconte ce qui s'est passé via un objet d'événements (atterrissage, contact, poteau cassé, sortie de glisse), dont la page tire ses effets visuels. Équivalence vérifiée au bit près contre l'ancienne boucle (12 maps × 30 s). `voxel/impact.js → resolveImpact()` regroupe la perte de voxels et le recalcul des stats/pouvoirs pour qu'elle suive les mêmes règles partout.
 
-⚠ `server/game-loop.js` n'utilise **pas encore** `vehicle-tick.js` : il garde sa propre version plus ancienne de la boucle (hauteur approximative, pas de sauts, pas de cubes/poteaux, pas d'aide couloir, collision sans forme de carrosserie). C'est l'étape suivante du passage serveur. Les bots (`game/bot.js`) ont aussi leur propre version simplifiée.
+✅ Depuis le 30/09, `server/game-loop.js` utilise `vehicle-tick.js` (voir §8-9). Les bots (`game/bot.js`) ont encore leur propre version simplifiée de la conduite.
 
 ---
 
@@ -260,40 +267,62 @@ C'est cette cohabitation qui impose le double mode du générateur. `dedupePoolB
 | `game:state` | voir ci-dessous — **30 Hz** |
 | `game:player-arrived` | `{ matchId, playerId, ordre }` |
 | `game:victory` | `{ matchId, podium }` — ⚠ le podium ne doit pas être affiché aux joueurs |
-| `game:rejoin:ok` / `game:rejoin:error` | reconnexion |
+| `game:rejoin:ok` | `{ matchId, playerId, snapshot }` — `snapshot` = état courant (voir ci-dessous) |
+| `game:rejoin:error` | `{ message }` |
 
 ```js
-// game:state
+// game:state — 30 Hz (mis à jour le 30/09)
 {
   matchId,
+  phase,        // 'attente' | 'decompte' | 'course'
+  departDans,   // secondes avant le départ pendant le décompte, sinon null
   players: {
     [playerId]: {
       playerName,
-      position: { x, y, z },
-      velocity: { x, z },
-      angle, speed, drifting, driftAngle, elevation
+      position: { x, z }, velocity: { x, z },
+      angle, speed, drifting, driftAngle, elevation,
+      y, vy, airborne,        // hauteur réelle et saut
+      effects,                // pouvoirs subis ce tick, ou null
+      shield,                 // { hp, hpMax, active } ou null
     }
   },
-  cohesion: { value, isFull }
+  cohesion: { value, isFull },
+  cubes,        // [{ id, x, z }] cubes en mouvement (+ un dernier envoi à l'arrêt), ou null
+  events: [     // ce qui s'est passé pendant ce tick — pour les effets visuels
+    { t: 'atterrissage', id, impact },
+    { t: 'mur', id, choc, n: [nx, nz], v },     // choc = premier contact ; v = vitesse de frottement
+    { t: 'degats', id, dv, voxels: [{ x, z, y, color }] },  // voxels arrachés (grid[x][z][y])
+    { t: 'bouclier', id, hp, brise },
+    { t: 'poteau', poteau },                    // id du poteau tombé
+    { t: 'boost', id }, { t: 'collant', id }, { t: 'turbo', id, charge },
+  ],
 }
+
+// snapshot (game:rejoin:ok) — ce qui a changé depuis l'envoi de la map
+{ phase, vehicules: { [playerId]: grid }, poteauxTombes: [id], cubes: [{ id, x, z }] }
 ```
 
-⚠ `game:end` et `game:event` sont écoutés par `network/client.js` (`onGameEnd`, `onEvent`) mais **aucun serveur ne les émet**.
+Les ids de cubes et poteaux valent `"bx,bz,gz,gx"` (position du bloc + case d'origine), fixés par `game/world-objects.js`.
+
+**Déroulé d'un match** : `attente` (personne ne bouge ; on attend que chaque page de jeu ait envoyé `game:rejoin`, au plus `match.waitForPlayersSec`) → `decompte` (`match.countdownSec`) → `course`.
+
+⚠ `game:end` et `game:event` sont écoutés par `network/client.js` (`onGameEnd`, `onEvent`) mais **aucun serveur ne les émet** — les événements passent désormais dans `game:state.events`.
 
 ---
 
 ## 9. Répartition client / serveur
 
+Depuis le 30/09, la boucle serveur fait tourner `game/vehicle-tick.js`, le même module que le solo.
+
 | Autoritaire serveur | Client uniquement |
 |---|---|
-| Position, vélocité, angle, drift | Rendu Three.js, caméra, roll visuel |
-| Détection de terrain (`checkTerrain`) et rebonds | **Perte de voxels** (`applyImpactDamage`) |
-| Élévation (rampes, plateaux) | Pouvoirs : meshes, effets, absorption bouclier |
-| Génération de map | Particules, skid marks, trail |
-| Jauge de cohésion | Mini-map, flèches hors-écran |
-| Arrivée et victoire | Cubes déplaçables, poteaux cassables |
+| Conduite complète (`vehicle-tick`) : terrain, sauts, rampes, rebonds, aide couloir | Rendu Three.js, caméra, roulis/tangage/écrasement |
+| **Perte de voxels** (`game/damage.js` : bouclier puis `resolveImpact`) | Particules, skid marks, trail, étincelles (tirées de `events`) |
+| Cubes poussables et poteaux cassables (`world-objects`, `movables`) | Mini-map, flèches hors-écran |
+| Effets de pouvoir (RVB + bouclier) | Visuels des pouvoirs |
+| Génération de map, jauge de cohésion, arrivée et victoire | |
 
-**Conséquence importante** : la perte de voxels est purement visuelle et locale. Deux joueurs ne voient pas le même état de dégâts. C'est assumé en V1, mais ce n'est pas ce que décrivait `prd-race.md` (qui prévoyait un raycast serveur).
+⚠ `game-page.js` (page multijoueur actuelle, datée de mai) n'exploite pas encore `events`, `cubes`, `phase` ni `snapshot`, et calcule encore sa propre perte de voxels locale. Elle sera remplacée par la nouvelle page de jeu (étape 3).
 
 ### Calcul de cohésion (dans `game-loop.js`)
 
