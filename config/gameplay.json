@@ -99,6 +99,26 @@
     "rollStiffness":       90.0,
     "rollDamping":         9.0,
 
+    "pitchGain":           0.012,
+    "pitchMax":            0.12,
+    "pitchSmoothing":      0.15,
+    "squashGain":          0.3,
+    "squashMax":           0.35,
+    "squashStiffness":     160.0,
+    "squashDamping":       11.0,
+    "scrapeMinSpeed":      2.0,
+    "scrapeSparkRate":     25.0,
+
+    "steerAssist": {
+      "enabled":         true,
+      "gain":            0.6,
+      "whiskerAngleDeg": 25,
+      "lookaheadBase":   2.0,
+      "lookaheadTime":   0.35,
+      "minSpeed":        2.0,
+      "playerOverride":  0.7
+    },
+
     "speedStatMin":        0.78,
     "speedStatMax":        1.3,
     "gripStatMin":         0.75,

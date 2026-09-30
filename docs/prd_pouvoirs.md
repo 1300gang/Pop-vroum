@@ -13,16 +13,20 @@
 
 ## 1. État réel du code — à lire avant toute chose
 
-Les pouvoirs sont aujourd'hui **entièrement visuels**. Aucun véhicule ne reçoit jamais
-le moindre bonus.
+> **Mise à jour du 24/09/2026.** Le tableau ci-dessous décrit l'état au 20/09. Depuis,
+> les 4 pouvoirs codés sont branchés : `power-effects.js` calcule les effets
+> (`computeEffects`) puis les agrège par cible (`foldEffects`) sans muter les stats ;
+> `test-v5` et `server/game-loop.js` les appliquent, et `game-loop.js` appelle
+> `absorbDamage()`. Restent vrais : violet et rose absents, perte de voxels non
+> synchronisée entre clients.
 
-| Constat | Détail |
-|---|---|
-| `applyEffects()` n'est **jamais appelé** | `powers.update()` calcule et retourne les effets ; les 5 pages qui l'appellent jettent la valeur de retour |
-| `absorbDamage()` n'est **jamais appelé** | La logique de bouclier dégressif existe mais reste morte |
-| Violet et rose n'existent pas | `voxel/stats.js` calcule leurs valeurs, `game/powers.js` n'implémente que 4 pouvoirs |
-| Les effets seraient faux s'ils étaient branchés | `target.stats.speed *= 1.3` mute l'objet stats à chaque frame, sans retour à la valeur de base : l'effet se cumulerait indéfiniment |
-| La perte de voxels n'est pas synchronisée | Purement locale à chaque client — deux joueurs ne voient pas le même état de dégâts |
+| Constat (20/09) | Détail | Au 24/09 |
+|---|---|---|
+| `applyEffects()` n'est **jamais appelé** | `powers.update()` calcule et retourne les effets ; les 5 pages qui l'appellent jettent la valeur de retour | Résolu — remplacé par `computeEffects` / `foldEffects` |
+| `absorbDamage()` n'est **jamais appelé** | La logique de bouclier dégressif existe mais reste morte | Résolu côté serveur (`game-loop.js`) |
+| Violet et rose n'existent pas | `voxel/stats.js` calcule leurs valeurs, `game/powers.js` n'implémente que 4 pouvoirs | Toujours vrai |
+| Les effets seraient faux s'ils étaient branchés | `target.stats.speed *= 1.3` mute l'objet stats à chaque frame, sans retour à la valeur de base : l'effet se cumulerait indéfiniment | Résolu — les effets ne mutent plus les stats |
+| La perte de voxels n'est pas synchronisée | Purement locale à chaque client — deux joueurs ne voient pas le même état de dégâts | Toujours vrai (phase serveur) |
 
 Ce qui existe et se garde : les visuels des 3 pouvoirs à effet (aspiration, phares,
 sillage) et le dôme de bouclier. On construit dessus, on ne repart pas de zéro.

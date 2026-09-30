@@ -8,7 +8,7 @@
 // évolue désormais, test-solo-v3 est figée comme référence de l'état précédent.
 
 import * as THREE from '../lib/three.module.js';
-import { buildVehicleGroup, createPreviewScene, applyRoll } from '../modules/voxel/renderer.js';
+import { buildVehicleGroup, createPreviewScene, applyRoll, applyPitch, kickSquash, applySquash } from '../modules/voxel/renderer.js';
 import { generateRandomVehicle, generatePresetVehicle, PRESETS, COULEUR_HEX, COULEUR_FR } from '../modules/voxel/random-vehicle.js';
 import * as controls    from '../modules/game/controls.js';
 import * as physics     from '../modules/game/physics.js';
@@ -33,6 +33,8 @@ import { V4_TEST_BLOCKS, trouverSpawnRampe } from '../modules/game/test-blocks-v
 import { construirePisteMesure, construirePisteEffets } from '../modules/game/test-track.js';
 import { createTurnAnalyzer, sampleTurn, getTurnReport } from '../modules/game/turn-analyzer.js';
 import { renderTurnPanel } from '../modules/game/turn-view.js';
+import { buildNavGrid } from '../modules/game/navigation.js';
+import { assistSteering } from '../modules/game/steer-assist.js';
 
 // Banc d'essai V4 (?v4=1) : remplace le pool de blocs par des blocs de test
 // déterministes (rampes dans les 4 directions, plateaux, bosses).
@@ -202,6 +204,11 @@ let _lapVoxelsStart = 0;
 let _overlayVisible = false;
 let _fpsSamples     = [];   // moyenne glissante sur 60 frames
 let _dernierVlat    = 0;
+let _navJoueur      = null;  // grille de navigation pour l'aide couloir
+let _aideActive     = true;  // bascule G, pour comparer avec / sans
+let _dernierVfwd    = 0;   // vitesse avant, pour le tangage de caisse
+let _vfwdPrecedent  = 0;
+let _accelLissee    = 0;
 let _dernierTerrain = null;  // type de surface sous le véhicule (lecture debug V4)
 // Game feel : on met les effets en pause pour ne juger que la conduite (touche E)
 let _effetsActifs      = false;
@@ -722,6 +729,7 @@ async function _regenererMap() {
   }
   }
   trail.clear();
+  _navJoueur = buildNavGrid(_map);
   const blocmapSize = BLOCK_SIZE * _map.blockScale;
   $('map-info').textContent = MODE_EFFETS
     ? `Piste des effets — ${_map.gridCols} sections`
@@ -930,6 +938,7 @@ function _appliquerEffetSpecial(type, deltaV, velocityImpact) {
 function _mettreAJourDebugPhys(dec, driftInfo = null) {
   const { v_forward, v_lateral } = dec;
   _dernierVlat = v_lateral;
+  _dernierVfwd = v_forward;
 
   $('dbg-vx').textContent    = _carState.velocity.x.toFixed(2);
   $('dbg-vz').textContent    = _carState.velocity.z.toFixed(2);
@@ -966,6 +975,18 @@ function _majLecturesV4() {
 }
 
 // Game feel : les effets sont coupés par défaut pour ne juger que la conduite.
+function _majEtatAide(aide = null) {
+  const el = $('dbg-aide');
+  if (!el) return;
+  if (!_aideActive || !_physConsts?.steerAssist?.enabled) {
+    el.textContent = 'OFF (G)'; el.style.color = '#888'; return;
+  }
+  el.style.color = '';
+  el.textContent = aide
+    ? `${aide.correction >= 0 ? '+' : ''}${aide.correction.toFixed(2)}  (G ${aide.gauche.toFixed(1)} / D ${aide.droite.toFixed(1)})`
+    : 'ON (G)';
+}
+
 function _majEtatEffets() {
   const el = $('dbg-effets');
   if (!el) return;
@@ -1802,6 +1823,10 @@ async function init() {
       _effetsActifs = !_effetsActifs;
       _majEtatEffets();
     }
+    if (e.key === 'g' || e.key === 'G') {
+      _aideActive = !_aideActive;
+      _majEtatAide();
+    }
     if (e.key === 'f' || e.key === 'F') _toggleCloture();
     if (e.key === 't' || e.key === 'T') trail.clear();
     if (e.key === 'p' || e.key === 'P') _activerOnglet('virage');
@@ -1883,6 +1908,7 @@ function _boucle(now) {
 
     if (vertical.landed) {
       camera.shake((vertical.impact ?? 0) * (_physConsts?.LANDING_SHAKE ?? 0.25));
+      if (_effetsActifs) kickSquash(_vehicleGroup, vertical.impact ?? 0, _physConsts);
       const reception = physics.applyLandingPenalty(_carState, _physConsts);
       _derniereReception = reception.perte > 0
         ? `${(reception.desalignement * 100).toFixed(0)} % de travers · −${(reception.perte * 100).toFixed(0)} % vitesse`
@@ -1948,7 +1974,13 @@ function _boucle(now) {
       // La rampe de volant agit même en vol : la main reste sur le volant, seule
       // la réponse du véhicule est coupée.
       const steerBrut   = _autoLoop ? _autoSteer : inputs.steering;
-      const steerLisse  = physics.rampSteering(_carState, steerBrut, dt, _physConsts);
+      // Aide couloir : léger coup de volant vers le côté dégagé, avant la rampe
+      // de volant pour qu'elle soit lissée comme une vraie entrée du joueur.
+      const aide = _aideActive
+        ? assistSteering(_navJoueur, _carState, steerBrut, _physConsts?.steerAssist)
+        : null;
+      _majEtatAide(aide);
+      const steerLisse  = physics.rampSteering(_carState, aide?.steer ?? steerBrut, dt, _physConsts);
       const steeringEff = enVol ? 0 : steerLisse;
       const throttle = enVol             ? 0
                      : isAutoReversing   ? -1
@@ -1990,11 +2022,24 @@ function _boucle(now) {
           _carState.position.z += terrain.pushBack.z;
 
           if (wallNormal) {
-            if (_effetsActifs && _carState.drifting) {
-              particles.emitSparks(
-                { x: _carState.position.x, y: 0.3, z: _carState.position.z },
-                wallNormal, 6
-              );
+            // Étincelles de frottement : à chaque contact qui glisse le long de la
+            // paroi, pas seulement en drift. Le nombre suit la durée de contact
+            // (taux par seconde) pour ne pas dépendre du framerate.
+            if (_effetsActifs && !pousseCube) {
+              const vn = velocityBefore.x * wallNormal.x + velocityBefore.z * wallNormal.z;
+              const vtx = velocityBefore.x - vn * wallNormal.x;
+              const vtz = velocityBefore.z - vn * wallNormal.z;
+              const vTangente = Math.sqrt(vtx * vtx + vtz * vtz);
+              const seuil = _physConsts?.scrapeMinSpeed ?? 2.0;
+              if (vTangente > seuil) {
+                const attendu = (_physConsts?.scrapeSparkRate ?? 25) * dt * (vTangente / seuil);
+                const nb = Math.floor(attendu) + (Math.random() < attendu % 1 ? 1 : 0);
+                if (nb > 0) particles.emitSparks(
+                  { x: _carState.position.x - wallNormal.x * 0.5, y: 0.3,
+                    z: _carState.position.z - wallNormal.z * 0.5 },
+                  wallNormal, nb
+                );
+              }
             }
 
             // RACE-D01 : vérification du seuil de dommage
@@ -2168,6 +2213,14 @@ function _boucle(now) {
     _vehicleGroup.rotation.y = -_carState.angle;
     // SOLO-02 : axe 'x' car rotation.y = -angle ici (véhicule face +X, pas +Z)
     applyRoll(_vehicleGroup, _dernierVlat, dt, 'x', _physConsts);
+
+    // Tangage de caisse : cabre à l'accélération, plonge au freinage. En l'air
+    // la caisse revient à plat, le tangage de vol est porté par le groupe.
+    const accelBrute = dt > 0 ? (_dernierVfwd - _vfwdPrecedent) / dt : 0;
+    _vfwdPrecedent = _dernierVfwd;
+    _accelLissee  += (accelBrute - _accelLissee) * (_physConsts?.pitchSmoothing ?? 0.15);
+    applyPitch(_vehicleGroup, (_effetsActifs && !_carState.airborne) ? _accelLissee : 0, dt, 'x', _physConsts);
+    applySquash(_vehicleGroup, dt, _physConsts);
 
     // Game feel : le capot se lève au décollage et pique en chute. Sans ça, une
     // voiture qui reste plate en l'air se lit comme un sol qui monte.

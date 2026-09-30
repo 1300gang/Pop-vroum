@@ -74,7 +74,6 @@ Dimensions : `DIM_X = 8`, `DIM_Z = 4`, `DIM_Y = 4`.
   lobby-manager.js            Lobbies 1-5 joueurs, statut, ready
   match-end.js                Détection d'arrivée + victoire collective
   admin-routes.js             GET/POST /admin/blocks  ⚠ contredit la décision produit
-  cohesion.js                 ⚠ STUB — 1 ligne, vide
 
 /config/
   gameplay.json               vehicleStats, powers, physics, surfaceGrip,
@@ -101,14 +100,14 @@ Dimensions : `DIM_X = 8`, `DIM_Z = 4`, `DIM_Y = 4`.
 /public/js/modules/
   scan/      capture · qr-detect · perspective · segmenter · segmenter-v2
              color-reader · calibration · manual-hsl-tuner · debug-view
-             symbol-reader  ⚠ mort (scan de blocs abandonné)
   voxel/     builder (v1) · builder-sandwich (v2) · wheel-detector · stats
              renderer · impact (raycast dégâts) · random-vehicle
   block/     builder · renderer · editor · validator
   game/      physics · collision · controls · camera · map-generator · map-loader
              powers · cohesion-visual · minimap · offscreen · particles · skid
              trail · movables · bot · test-blocks-v4 · test-track
-             cohesion.js  ⚠ STUB      impact.js  ⚠ STUB
+             cohesion (calcul) · cohesion-view · fence · navigation · power-effects
+             turn-analyzer · turn-view · steer-assist (aide couloir)
   network/   client · lobby · sync
   storage/   local · gallery
 
@@ -323,14 +322,14 @@ Le client lit les configs via `/config/*.json` (servi en statique) ; le serveur 
 
 | # | Élément | Action suggérée |
 |---|---|---|
-| 1 | `server/cohesion.js`, `game/cohesion.js`, `game/impact.js` — stubs d'une ligne | Supprimer, ou implémenter |
-| 2 | `scan/symbol-reader.js` — scan de blocs abandonné | Supprimer |
+| 1 | ~~`server/cohesion.js`, `game/impact.js` — stubs d'une ligne~~ | **Résolu le 24/09** — supprimés (`game/cohesion.js` est devenu un vrai module) |
+| 2 | ~~`scan/symbol-reader.js` — scan de blocs abandonné~~ | **Résolu le 24/09** — supprimé |
 | 3 | `admin-routes.js` — route HTTP non voulue | Retirer ou assumer explicitement |
 | 4 | `game:end` / `game:event` — écoutés, jamais émis | Implémenter l'écran de fin, ou retirer les écouteurs |
 | 5 | `DAMAGE_THRESHOLD = 8.0` codé en dur dans `game-page.js` (config : `4`) | Lire depuis `gameplay.json` |
 | 6 | 5 blocs `_seed` sans `exits` + 2 conventions de nommage | Migrer vers `block_seed_*` avec `exits`, retirer le mode legacy |
 | 7 | `.claude/worktrees/elegant-shtern-ef8496` — 12 Mo dupliqués | Supprimer le worktree (`git worktree remove`) |
-| 8 | 1 seul commit dans l'historique, ~60 fichiers non versionnés | **Commiter avant tout gros chantier** |
+| 8 | ~~1 seul commit dans l'historique, ~60 fichiers non versionnés~~ | **Résolu le 23/09** — historique versionné et poussé sur GitHub |
 | 9 | `vehicleSheetV2` non calibré sur impression réelle | Calibrer au premier tirage papier |
 
 ---

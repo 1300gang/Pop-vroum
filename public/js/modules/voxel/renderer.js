@@ -92,7 +92,7 @@ export function buildVehicleGroup(vehicle) {
   }
 
   group.userData.caisse = caisse;
-  group.userData.susp   = { roll: 0, rollVel: 0 };
+  group.userData.susp   = { roll: 0, rollVel: 0, pitch: 0, pitchVel: 0, squash: 0, squashVel: 0 };
 
   console.log('[voxel/renderer]', nbVoxels, 'voxels +', wheelPositions.length, 'roues');
 
@@ -159,6 +159,82 @@ export function applyRoll(group, vLateral, dt, axis = 'z', consts = null) {
 
   if (axis === 'x') caisse.rotation.x = susp.roll;
   else              caisse.rotation.z = susp.roll;
+}
+
+// ---- Tangage et écrasement de caisse ----
+
+/**
+ * Tangage longitudinal : la caisse se cabre à l'accélération et plonge au
+ * freinage (transfert de charge). Même ressort amorti que le roulis — c'est le
+ * léger dépassement qui fait sentir la masse. En l'air, retour à plat : le
+ * tangage de vol est géré par la page sur le groupe parent.
+ *
+ * @param {THREE.Group} group      — groupe véhicule issu de buildVehicleGroup
+ * @param {number}      accelLong  — accélération longitudinale lissée (u/s², > 0 = accélère)
+ * @param {number}      dt
+ * @param {string}      axis       — même convention que applyRoll
+ * @param {object}      [consts]   — /config/gameplay.json → physics
+ */
+export function applyPitch(group, accelLong, dt, axis = 'z', consts = null) {
+  const caisse = group.userData.caisse;
+  const susp   = group.userData.susp;
+  const cfg    = consts ?? {};
+
+  const gain = cfg.pitchGain     ?? 0.012;
+  const maxi = cfg.pitchMax      ?? 0.12;
+  const k    = cfg.rollStiffness ?? 90;
+  const c    = cfg.rollDamping   ?? 9;
+
+  const cible = Math.max(-maxi, Math.min(maxi, accelLong * gain));
+
+  const pas = Math.min(dt, 0.033);
+  susp.pitchVel += (-k * (susp.pitch - cible) - c * susp.pitchVel) * pas;
+  susp.pitch    += susp.pitchVel * pas;
+
+  // L'avant du véhicule est +X local : une rotation positive autour de Z le lève
+  if (axis === 'x') caisse.rotation.z = susp.pitch;
+  else              caisse.rotation.x = -susp.pitch;
+}
+
+/**
+ * Coup d'écrasement à la réception d'un saut : donne une vitesse d'écrasement
+ * au ressort, que applySquash() fait ensuite osciller et retomber.
+ * @param {THREE.Group} group
+ * @param {number}      impact — vitesse verticale d'impact (tickVertical().impact)
+ * @param {object}      [consts]
+ */
+export function kickSquash(group, impact, consts = null) {
+  const susp = group.userData.susp;
+  const cfg  = consts ?? {};
+  susp.squashVel += Math.abs(impact) * (cfg.squashGain ?? 0.3);
+}
+
+/**
+ * Écrasement / étirement de caisse (squash & stretch) sur ressort amorti.
+ * Écrasée, la caisse s'aplatit et s'élargit ; au rebond elle s'étire un peu.
+ * Le volume reste à peu près constant pour que ça se lise comme de l'élasticité
+ * et pas comme un changement de taille.
+ * @param {THREE.Group} group
+ * @param {number}      dt
+ * @param {object}      [consts]
+ */
+export function applySquash(group, dt, consts = null) {
+  const caisse = group.userData.caisse;
+  const susp   = group.userData.susp;
+  const cfg    = consts ?? {};
+
+  const maxi = cfg.squashMax       ?? 0.35;
+  const k    = cfg.squashStiffness ?? 160;
+  const c    = cfg.squashDamping   ?? 11;
+
+  const pas = Math.min(dt, 0.033);
+  susp.squashVel += (-k * susp.squash - c * susp.squashVel) * pas;
+  susp.squash    += susp.squashVel * pas;
+  susp.squash     = Math.max(-maxi, Math.min(maxi, susp.squash));
+
+  const sy = 1 - susp.squash;
+  const sh = 1 / Math.sqrt(Math.max(0.2, sy));   // compensation de volume
+  caisse.scale.set(sh, sy, sh);
 }
 
 /**

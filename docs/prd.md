@@ -155,21 +155,21 @@ Les 6 pouvoirs sont à reprendre en phase 4/6 sous le principe du double trancha
 
 ## 7. Incohérences relevées à traiter
 
-Relevées le 16/09/2026 en comparant docs et code. Aucune n'est corrigée à ce stade.
+Relevées le 16/09/2026 en comparant docs et code. Colonne « Au 24/09 » : état après revue. Le travail se fait en solo (`test-v5`) jusqu'à ce que le jeu soit propre ; les points serveur/multijoueur attendent la phase réseau.
 
-| # | Constat | Impact |
-|---|---------|--------|
-| 1 | `game:end` et `game:event` sont écoutés côté client mais **jamais émis** par le serveur. | Code mort ou fonctionnalité manquante (écran de fin). |
-| 2 | `admin-routes.js` implémente la route HTTP `POST /admin/blocks` (option A), alors que la décision est l'export JSON manuel (option B). | Route active non voulue. À retirer ou assumer. |
-| 3 | `server/cohesion.js`, `game/cohesion.js`, `game/impact.js` sont des **fichiers d'une ligne** (stubs vides). La cohésion réelle vit dans `game-loop.js`, l'impact dans `voxel/impact.js`. | Fichiers fantômes qui trompent la lecture. |
-| 4 | `DAMAGE_THRESHOLD` est codé en dur à `8.0` dans `game-page.js` alors que `gameplay.json` déclare `4`. | Viole la règle « ne jamais hardcoder ». Le calibrage ne prend pas. |
-| 5 | Le bouclier **est déjà dégressif** (`absorbDamage`, `shield.hp`), contrairement à ce qui était supposé. | La décision R8 (« intention future ») est à revoir : c'est déjà là. |
-| 6 | `scan-v2-sandwich.md` documente une convention x/z **inversée** par rapport au code. `builder-sandwich.js` signale l'écart et applique la bonne. | Piège pour toute future session. Le code fait foi (§ architecture). |
-| 7 | `index.html` présente encore `scan.html` (v1) comme étape 1 du flux atelier. | Contredit la décision « v2 officielle ». |
-| 8 | Le pool `_seed` mélange 10 blocs `block_seed_*` (avec `exits`) et 5 blocs anciens sans `exits`, plus 2 blocmaps vides. Deux conventions de nommage. | Le générateur fonctionne en double mode pour compenser. |
-| 9 | `symbol-reader.js` subsiste alors que le scan de blocs a été abandonné. | Code mort. |
-| 10 | `.claude/worktrees/elegant-shtern-ef8496` duplique **12 Mo** du dépôt (branche datée de mai). | Pollue les recherches, double les résultats. |
-| 11 | Le dépôt n'a qu'**un seul commit**. Des mois de travail (35 fichiers modifiés, ~27 non suivis) ne sont pas versionnés. | Aucun point de restauration. Risque majeur. |
+| # | Constat | Impact | Au 24/09 |
+|---|---------|--------|----------|
+| 1 | `game:end` et `game:event` sont écoutés côté client mais **jamais émis** par le serveur. | Code mort ou fonctionnalité manquante (écran de fin). | Ouvert — phase serveur |
+| 2 | `admin-routes.js` implémente la route HTTP `POST /admin/blocks` (option A), alors que la décision est l'export JSON manuel (option B). | Route active non voulue. À retirer ou assumer. | Ouvert — phase serveur |
+| 3 | `server/cohesion.js`, `game/cohesion.js`, `game/impact.js` sont des **fichiers d'une ligne** (stubs vides). La cohésion réelle vit dans `game-loop.js`, l'impact dans `voxel/impact.js`. | Fichiers fantômes qui trompent la lecture. | **Résolu** — stubs supprimés le 24/09 ; `game/cohesion.js` est devenu un vrai module |
+| 4 | `DAMAGE_THRESHOLD` est codé en dur à `8.0` dans `game-page.js` alors que `gameplay.json` déclare `4`. | Viole la règle « ne jamais hardcoder ». Le calibrage ne prend pas. | Ouvert — phase serveur (`game-page.js` = page multijoueur ; config à `2` désormais). `test-v5` utilise ses propres curseurs de casse |
+| 5 | Le bouclier **est déjà dégressif** (`absorbDamage`, `shield.hp`), contrairement à ce qui était supposé. | La décision R8 (« intention future ») est à revoir : c'est déjà là. | Branché côté serveur, voir `prd_pouvoirs.md` §1 |
+| 6 | `scan-v2-sandwich.md` documente une convention x/z **inversée** par rapport au code. `builder-sandwich.js` signale l'écart et applique la bonne. | Piège pour toute future session. Le code fait foi (§ architecture). | Ouvert |
+| 7 | `index.html` présente encore `scan.html` (v1) comme étape 1 du flux atelier. | Contredit la décision « v2 officielle ». | **Résolu** — l'étape 1 pointe vers `scan2.html`, v1 est rangée dans les outils |
+| 8 | Le pool `_seed` mélange 10 blocs `block_seed_*` (avec `exits`) et 5 blocs anciens sans `exits`, plus 2 blocmaps vides. Deux conventions de nommage. | Le générateur fonctionne en double mode pour compenser. | Ouvert |
+| 9 | `symbol-reader.js` subsiste alors que le scan de blocs a été abandonné. | Code mort. | **Résolu** — supprimé le 24/09 |
+| 10 | `.claude/worktrees/elegant-shtern-ef8496` duplique **12 Mo** du dépôt (branche datée de mai). | Pollue les recherches, double les résultats. | Ouvert — il y a maintenant 2 worktrees, chacun avec des modifs non commitées : à trier à la main |
+| 11 | Le dépôt n'a qu'**un seul commit**. Des mois de travail (35 fichiers modifiés, ~27 non suivis) ne sont pas versionnés. | Aucun point de restauration. Risque majeur. | **Résolu** — historique versionné et poussé sur GitHub |
 
 ---
 
