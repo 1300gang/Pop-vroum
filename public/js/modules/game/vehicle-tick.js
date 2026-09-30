@@ -68,7 +68,7 @@ export function createVehicleSim(spawn) {
  * Fait avancer un véhicule d'une frame.
  *
  * @param {object} sim    — createVehicleSim()
- * @param {{ steering: number, braking?: boolean, reversing?: boolean }} inputs
+ * @param {{ steering: number, braking?: boolean, reversing?: boolean, throttle?: number }} inputs
  * @param {object} world  — voir l'en-tête
  * @param {number} dt     — secondes
  * @param {object} opts   — voir l'en-tête
@@ -192,8 +192,12 @@ export function tickVehicle(sim, inputs, world, dt, opts = {}) {
   // réponse du véhicule est coupée.
   const steerLisse  = physics.rampSteering(car, aide?.steer ?? steerBrut, dt, consts);
   const steeringEff = enVol ? 0 : steerLisse;
+  // `throttle` explicite : réservé aux bots, qui lèvent le pied ou dosent
+  // l'accélérateur. Un joueur n'a que le frein et la marche arrière — le
+  // serveur ne transmet d'ailleurs que ces deux-là.
   const throttle = enVol            ? 0
                  : isAutoReversing  ? -1
+                 : Number.isFinite(inputs.throttle) ? inputs.throttle
                  : inputs.reversing ? -1
                  : inputs.braking   ? -0.8
                  : 1;
@@ -314,10 +318,13 @@ function _contactParoi(sim, terrain, world, dt, ev) {
   car.position.z += car.velocity.z * dt;
 
   // Amortissement contre un mur pour éviter les oscillations — pas en poussant
-  // un cube, sinon la voiture ne le suivrait jamais.
+  // un cube, sinon la voiture ne le suivrait jamais. Rapporté au temps (0,92
+  // par frame à 60 fps) : appliqué par frame, il freinait plus fort à 144 fps
+  // et moins sur le serveur à 30 Hz qu'en solo.
   if (!pousseCube) {
-    car.velocity.x *= 0.92;
-    car.velocity.z *= 0.92;
+    const amorti = Math.pow(0.92, dt * 60);
+    car.velocity.x *= amorti;
+    car.velocity.z *= amorti;
   }
   car.speed = Math.sqrt(car.velocity.x ** 2 + car.velocity.z ** 2);
 

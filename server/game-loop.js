@@ -42,6 +42,9 @@ import { createWorldObjects, findBlockAt } from '../public/js/modules/game/world
 import { buildNavGrid } from '../public/js/modules/game/navigation.js';
 import * as movables from '../public/js/modules/game/movables.js';
 import { statsFromGrid } from '../public/js/modules/voxel/stats.js';
+import {
+  createBotNav, createBotIA, refreshPlayerField, decideInputs, noteContact,
+} from '../public/js/modules/game/bot-brain.js';
 
 const __dirname  = dirname(fileURLToPath(import.meta.url));
 const TICK_RATE  = 30;
@@ -186,6 +189,47 @@ function _statsNormalisees(vehicule, vs) {
   };
 }
 
+// ---- Bots de test (outil de dev, jamais en atelier) ----
+// match.testBots > 0 dans gameplay.json ajoute des faux joueurs au match, pour
+// tester le multijoueur sans avoir cinq personnes sous la main. Ils conduisent
+// avec vehicle-tick comme tout le monde ; leur cerveau est game/bot-brain.js.
+
+async function _chargerBots(n) {
+  const bots = [];
+  for (let i = 1; i <= n; i++) {
+    try {
+      const raw = await readFile(join(__dirname, '..', 'data', 'test-vehicles', `bot-${i}.json`), 'utf-8');
+      bots.push(JSON.parse(raw));
+    } catch { break; }   // pas plus de bots que de fichiers
+  }
+  return bots;
+}
+
+// Les fichiers de bots n'ont pas de grille : une caisse simple aux couleurs de
+// leur palette (châssis + cabine), pour qu'ils se dessinent et s'abîment comme
+// des véhicules. Stats et pouvoirs en découlent, mêmes règles que les joueurs.
+function _vehiculeBot(cfgBot) {
+  const [c1, c2 = c1] = cfgBot.palette ?? [cfgBot.couleur ?? 'red'];
+  const grid = Array.from({ length: 8 }, (_, x) => Array.from({ length: 4 }, () =>
+    Array.from({ length: 4 }, (_, y) =>
+      y < 2 ? { color: c1 } : (y === 2 && x >= 2 && x <= 5) ? { color: c2 } : null)));
+  const wheelPositions = [
+    { x: 1, y: -0.3, z: 0 }, { x: 1, y: -0.3, z: 3 },
+    { x: 6, y: -0.3, z: 0 }, { x: 6, y: -0.3, z: 3 },
+  ];
+  return { id: cfgBot.id, nom: cfgBot.nom, palette: cfgBot.palette, grid, wheelPositions };
+}
+
+// Qui les bots accompagnent : le barycentre des joueurs humains connectés
+function _cibleBots(playerStates) {
+  let x = 0, z = 0, n = 0;
+  for (const ps of playerStates.values()) {
+    if (ps.bot || !ps.connected) continue;
+    x += ps.sim.car.position.x; z += ps.sim.car.position.z; n++;
+  }
+  return n > 0 ? { x: x / n, z: z / n } : null;
+}
+
 // ---- Gestion des matchs ----
 
 const matches = new Map();
@@ -276,6 +320,33 @@ export async function startMatch(matchId, players, io, roomId) {
     });
   });
 
+  const bots = await _chargerBots(cfg.match?.testBots ?? 0);
+  bots.forEach((cfgBot, i) => {
+    const playerId = `bot_${i + 1}`;
+    const spawnPos = mapData.entry?.spawnPositions?.[players.length + i]
+                  ?? mapData.startPosition;
+    const sim = createVehicleSim({
+      x: spawnPos.x, z: spawnPos.z,
+      angle: spawnPos.angle ?? mapData.startPosition?.angle ?? 0,
+    });
+    const brut     = _vehiculeBot(cfgBot);
+    const vehicule = _preparerVehicule(brut, cfg);
+    playerStates.set(playerId, {
+      playerId,
+      playerName:   `${cfgBot.nom ?? 'Bot'} (bot)`,
+      vehicule,
+      baseStats:    _statsNormalisees(vehicule, cfg.vehicleStats),
+      powerState:   createPowerState(vehicule.powers),
+      sim,
+      physicsState: sim.car,
+      latestInputs: { steering: 0, braking: 0, reversing: 0 },
+      connected:    true,
+      rejoint:      true,   // un bot n'a pas de page à charger
+      bot:          { ia: createBotIA(i) },
+    });
+    playerInfos.push({ playerId, socketId: null, playerName: `${cfgBot.nom ?? 'Bot'} (bot)`, vehicle: brut, bot: true });
+  });
+
   // Traînées de sillage du match. Elles vivent ici et pas dans le module :
   // le serveur fait tourner plusieurs matchs à la fois.
   const powerWorld = createPowerWorld();
@@ -283,6 +354,8 @@ export async function startMatch(matchId, players, io, roomId) {
   const match = {
     id: matchId, playerStates, socketMap, map: mapData, roomId, io, cfg,
     world, powerWorld,
+    // Navigation des bots de test (null sans bot)
+    botNav: bots.length > 0 ? createBotNav(mapData) : null,
     // Ids de tous les poteaux au départ : world.poles perd ceux qui tombent
     polesInitiaux: [...objets.poles.keys()],
     phase:      'attente',
@@ -293,7 +366,7 @@ export async function startMatch(matchId, players, io, roomId) {
   };
   match.intervalId = setInterval(() => _tickMatch(match), TICK_MS);
   matches.set(matchId, match);
-  console.log(`Match ${matchId} démarré — ${players.length} joueur(s), map ${mapData.gridCols}×${mapData.gridRows}`);
+  console.log(`Match ${matchId} démarré — ${players.length} joueur(s)${bots.length ? ` + ${bots.length} bot(s)` : ''}, map ${mapData.gridCols}×${mapData.gridRows}`);
 
   return { map: mapData, playerInfos };
 }
@@ -328,11 +401,25 @@ function _tickMatch(match) {
     const { effects } = computeEffects(vuePouvoirs, match.powerWorld, dt, now / 1000);
     effetsParJoueur = foldEffects(effects);
 
+    // Bots de test : leur cerveau choisit volant et pédales, puis ils roulent
+    // comme tout le monde. Pas d'aide couloir, elle contrarierait leur navigation.
+    const cible = match.botNav ? _cibleBots(playerStates) : null;
+    if (cible) {
+      const bots = [...playerStates.values()].filter(ps => ps.bot);
+      refreshPlayerField(match.botNav, cible, bots.map(ps => ps.sim.car.position), dt);
+      for (const ps of bots) {
+        ps.latestInputs = decideInputs(match.botNav, ps.bot.ia, ps.sim.car, cible,
+          cfg.cohesion?.radiusUnits ?? 8, dt);
+      }
+    }
+
     for (const ps of playerStates.values()) {
       const ev = tickVehicle(ps.sim, ps.latestInputs, world, dt, {
-        stats: ps.baseStats,
-        fx:    effetsParJoueur[ps.playerId],
+        stats:  ps.baseStats,
+        fx:     effetsParJoueur[ps.playerId],
+        assist: !ps.bot,
       });
+      if (ps.bot) noteContact(ps.bot.ia, !!ev.contact, dt);
       _traiterEvenements(ps, ev, world, cfg, events);
     }
 

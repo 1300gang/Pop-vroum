@@ -109,6 +109,7 @@ Dimensions : `DIM_X = 8`, `DIM_Z = 4`, `DIM_Y = 4`.
              cohesion (calcul) · cohesion-view · fence · navigation · power-effects
              turn-analyzer · turn-view · steer-assist (aide couloir)
              vehicle-tick (boucle de conduite partagée solo / serveur)
+             damage · world-objects · bot-brain (cerveau des bots, pur)
   network/   client · lobby · sync
   storage/   local · gallery
 
@@ -128,6 +129,7 @@ Dimensions : `DIM_X = 8`, `DIM_Z = 4`, `DIM_Y = 4`.
 | `game/damage.js` | `resolveCollision`, `rebuildPowerState` — bouclier puis voxels |
 | `game/world-objects.js` | `createWorldObjects`, `findBlockAt` — cubes et poteaux |
 | `game/navigation.js` | `buildNavGrid` — pour l'aide couloir |
+| `game/bot-brain.js` | `createBotNav`, `createBotIA`, `refreshPlayerField`, `decideInputs`, `noteContact` — bots de test |
 | `game/movables.js` | `tick` — cubes poussés |
 | `game/power-effects.js` | `createPowerState`, `createPowerWorld`, `computeEffects`, `foldEffects` |
 | `voxel/stats.js` | `statsFromGrid` — stats recalculées depuis la grille reçue |
@@ -136,7 +138,13 @@ Contrainte : ces modules doivent rester **du JS pur**, sans `document`, `window`
 
 **Depuis le 30/09 — `game/vehicle-tick.js`** : la boucle de conduite complète (terrain, sauts, rampes, bosses, boost/collant, recul auto, rebond et frottement contre les murs, cubes poussables, poteaux cassables, aide couloir, forces et glisse) est sortie de `test-v5-page.js` dans ce module pur. `test-v5` l'utilise déjà ; il raconte ce qui s'est passé via un objet d'événements (atterrissage, contact, poteau cassé, sortie de glisse), dont la page tire ses effets visuels. Équivalence vérifiée au bit près contre l'ancienne boucle (12 maps × 30 s). `voxel/impact.js → resolveImpact()` regroupe la perte de voxels et le recalcul des stats/pouvoirs pour qu'elle suive les mêmes règles partout.
 
-✅ Depuis le 30/09, `server/game-loop.js` utilise `vehicle-tick.js` (voir §8-9). Les bots (`game/bot.js`) ont encore leur propre version simplifiée de la conduite.
+✅ Depuis le 30/09, `server/game-loop.js` utilise `vehicle-tick.js` (voir §8-9), et les bots aussi : leur cerveau (navigation, volant, pédales) vit dans `game/bot-brain.js` (pur, importé par le serveur), leur rendu dans `game/bot.js`. La page figée `test-jeu-v2-solo` garde l'ancienne conduite des bots (mode sans navigation).
+
+**Bots de test côté serveur** (outil de dev, jamais en atelier) : `match.testBots` dans `gameplay.json` (0 par défaut) ajoute jusqu'à 4 bots au match (`data/test-vehicles/bot-N.json`). Ils accompagnent le barycentre des joueurs humains, conduisent avec `vehicle-tick` et comptent dans la victoire collective.
+
+**Taille de map** : `map.gridCols` (20 depuis le 30/09) est la taille par défaut du multijoueur **et** de `test-v5`. `map-generator.generate()` la lit aussi (la clé `procgenGridSize` qu'il lisait n'a jamais existé). Mesures 20×20 : génération < 0,2 s, ~100 boucles et 7-18 culs-de-sac sur 400 blocs (les blocs ont souvent plus de sorties que requis), chemin le plus court ~600 u ; tick serveur 1,5 ms médian avec 5 joueurs + 4 bots.
+
+**`game/map-loader.js`** charge un anneau 2D de blocs autour du véhicule (± max(2, `RENDER_DISTANCE`)), soit 49 blocs au plus quelle que soit la taille de map — il chargeait des colonnes entières (100 blocs en 20×20). Sans position Z (pages figées), repli sur les colonnes entières.
 
 ---
 

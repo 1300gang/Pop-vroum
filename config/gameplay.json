@@ -184,8 +184,8 @@
     }
   },
   "map": {
-    "gridCols": 8,
-    "gridRows": 8,
+    "gridCols": 20,
+    "gridRows": 20,
     "blockScale": 2,
     "fence": {
       "enabled": true,
@@ -202,6 +202,7 @@
   "match": {
     "countdownSec":       3,
     "waitForPlayersSec":  20,
+    "testBots":           0,
     "playerCount": [2, 3, 4, 5],
     "obstacleScaleByCount": {
       "2": 0.5,

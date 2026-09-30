@@ -187,8 +187,9 @@ async function _lancerMatch(lobbyId) {
       socketToMatch.set(p.socketId, matchId);
     }
 
-    // Envoi individuel : chaque joueur reçoit son propre playerId
-    for (const info of playerInfos) {
+    // Envoi individuel : chaque joueur reçoit son propre playerId (les bots
+    // de test n'ont pas de socket)
+    for (const info of playerInfos.filter(pi => pi.socketId)) {
       io.to(info.socketId).emit('lobby:start', {
         matchId,
         map,
@@ -197,6 +198,7 @@ async function _lancerMatch(lobbyId) {
           playerId:   pi.playerId,
           playerName: pi.playerName,
           vehicle:    pi.vehicle,
+          bot:        !!pi.bot,
         })),
       });
     }

@@ -1,16 +1,16 @@
-// Chargement dynamique de la map par colonnes de blocmaps.
+// Chargement dynamique de la map par blocmaps.
 //
-// Instancie les meshes Three.js uniquement pour les colonnes proches
-// du véhicule (±LOAD_MARGIN). Les colonnes éloignées sont libérées.
+// Instancie les meshes Three.js uniquement pour les blocs proches du véhicule :
+// un anneau de ±LOAD_MARGIN blocs en colonne ET en rangée (25 blocs au plus,
+// quelle que soit la taille de la map). Les blocs éloignés sont libérés.
+// Sans position Z (pages figées), repli sur des colonnes entières, comme avant.
 //
-// RACE-F01 : culling frustum par bloc à l'intérieur des colonnes chargées.
+// RACE-F01 : culling frustum par bloc à l'intérieur des blocs chargés.
 // Les blocs hors frustum sont retirés de la scène (pas seulement cachés).
 // Un buffer d'1 bloc autour du frustum est conservé pour éviter les pop-ins.
 //
-// Les blocs seed sont conçus pour un déplacement en Z. Comme les
-// véhicules avancent désormais en +X, on applique une rotation 90° CW
-// lors de la lecture des cellules :
-//   cellule rotée (rx, rz) = original grid[BLOCK_SIZE-1-rx][rz]
+// Plus aucune rotation ici : le pool est pivoté une fois au chargement
+// (map-generator.prepareBlockForGame).
 //
 // API publique :
 //   init(scene, map, buildMeshFn)  — prépare le loader avec la map
@@ -21,15 +21,14 @@
 import * as THREE from '../../lib/three.module.js';
 import { BLOCK_SIZE } from './map-generator.js';
 
-const LOAD_MARGIN = 2; // colonnes chargées = colonne courante ± LOAD_MARGIN
+const LOAD_MARGIN = 2; // blocs chargés = bloc courant ± LOAD_MARGIN (en colonne et en rangée)
 
 let _scene          = null;
 let _map            = null;
 let _buildMesh      = null;
 let _renderDistance = Infinity; // SOLO-07 : distance Chebyshev max (en blocs)
-let _loadedCols  = new Map(); // col → true (présence dans le pool chargé)
-let _blockMeshes = new Map(); // `${col},${row}` → { group, sphere, inScene }
-let _blocksByCol = new Map(); // col → [{ position, rotatedGrid }]
+let _blockMeshes = new Map(); // `${col},${row}` → { group, sphere, inScene, bloc }
+let _blocksByKey = new Map(); // `${col},${row}` → bloc
 
 // Réutilisés chaque frame pour éviter les allocations
 const _frustum    = new THREE.Frustum();
@@ -48,16 +47,10 @@ export function init(scene, map, buildMeshFn, renderDistance = Infinity) {
   _buildMesh      = buildMeshFn;
   _renderDistance = renderDistance;
 
-  // Pré-indexer les blocs par colonne + pré-calculer les grilles rotées
-  _blocksByCol.clear();
+  // Pré-indexer les blocs par case
+  _blocksByKey.clear();
   for (const bloc of map.blocks) {
-    const col = bloc.col;
-    if (!_blocksByCol.has(col)) _blocksByCol.set(col, []);
-
-    // Plus aucune rotation ici : le pool est pivoté une fois au chargement
-    // (map-generator.prepareBlockForGame). La rotation appliquée à ce stade
-    // déplaçait les couloirs APRÈS l'assemblage et murait une liaison sur deux.
-    _blocksByCol.get(col).push({
+    _blocksByKey.set(`${bloc.col},${bloc.row}`, {
       blockId:       bloc.blockId,
       name:          bloc.name,
       col:           bloc.col,
@@ -99,22 +92,30 @@ export function update(vehicleX, camera, vehicleZ) {
   const currentCol = Math.floor(vehicleX / blocmapSize);
   const currentRow = vehicleZ !== undefined ? Math.floor(vehicleZ / blocmapSize) : -1;
 
-  const colMin = Math.max(0, currentCol - LOAD_MARGIN);
-  const colMax = Math.min(_map.gridCols - 1, currentCol + LOAD_MARGIN);
+  // L'anneau couvre au moins la distance de rendu : charger moins que ce qu'on
+  // affiche ferait apparaître des trous en bord d'écran.
+  const marge  = Number.isFinite(_renderDistance) ? Math.max(LOAD_MARGIN, _renderDistance) : LOAD_MARGIN;
+  const colMin = Math.max(0, currentCol - marge);
+  const colMax = Math.min(_map.gridCols - 1, currentCol + marge);
+  // Sans Z connu : toutes les rangées (colonnes entières, ancien comportement)
+  const rowMin = currentRow >= 0 ? Math.max(0, currentRow - marge) : 0;
+  const rowMax = currentRow >= 0 ? Math.min(_map.gridRows - 1, currentRow + marge) : _map.gridRows - 1;
 
-  // Charger les colonnes nécessaires
+  // Charger les blocs de l'anneau
   for (let col = colMin; col <= colMax; col++) {
-    if (!_loadedCols.has(col)) {
-      _chargerColonne(col);
+    for (let row = rowMin; row <= rowMax; row++) {
+      const key = `${col},${row}`;
+      if (!_blockMeshes.has(key) && _blocksByKey.has(key)) _chargerBloc(key);
     }
   }
 
-  // Décharger les colonnes hors-portée (snapshot avant suppression pour éviter mutation pendant itération)
+  // Décharger ceux qui en sortent (liste figée avant suppression)
   const aDecharger = [];
-  for (const col of _loadedCols.keys()) {
-    if (col < colMin || col > colMax) aDecharger.push(col);
+  for (const [key, entry] of _blockMeshes) {
+    const { col, row } = entry.bloc;
+    if (col < colMin || col > colMax || row < rowMin || row > rowMax) aDecharger.push(key);
   }
-  for (const col of aDecharger) _dechargerColonne(col);
+  for (const key of aDecharger) _dechargerBloc(key);
 
   // RACE-F01 : culling frustum par bloc + SOLO-07 : distance Chebyshev
   const doCulling = camera || _renderDistance < Infinity;
@@ -156,10 +157,7 @@ export function update(vehicleX, camera, vehicleZ) {
  */
 export function getActiveBlocks() {
   const result = [];
-  for (const col of _loadedCols.keys()) {
-    const blocs = _blocksByCol.get(col);
-    if (blocs) result.push(...blocs);
-  }
+  for (const entry of _blockMeshes.values()) result.push(entry.bloc);
   return result;
 }
 
@@ -176,7 +174,7 @@ export function getVisibleBlockCount() {
 }
 
 /**
- * Retourne le nombre total de blocs chargés (pool colonnes ± LOAD_MARGIN).
+ * Retourne le nombre total de blocs chargés (anneau ± LOAD_MARGIN).
  * @returns {number}
  */
 export function getLoadedBlockCount() {
@@ -198,8 +196,7 @@ export function dispose() {
     });
   }
   _blockMeshes.clear();
-  _loadedCols.clear();
-  _blocksByCol.clear();
+  _blocksByKey.clear();
   _scene    = null;
   _map      = null;
   _buildMesh = null;
@@ -207,46 +204,29 @@ export function dispose() {
 
 // ---- Internes ----
 
-function _chargerColonne(col) {
-  const blocs = _blocksByCol.get(col);
-  if (!blocs || blocs.length === 0) return;
+function _chargerBloc(key) {
+  const bloc   = _blocksByKey.get(key);
+  // Un group par bloc, pour le culling frustum individuel (RACE-F01)
+  const group  = _buildMesh([bloc], _map.blockScale);
+  const sphere = _sphereDeBloc(bloc);
 
-  // RACE-F01 : construire un group par bloc (pas un group pour toute la colonne)
-  // pour permettre le culling frustum individuel.
-  for (const bloc of blocs) {
-    const key = `${col},${bloc.row}`;
-    if (_blockMeshes.has(key)) continue;
-
-    const group  = _buildMesh([bloc], _map.blockScale);
-    const sphere = _sphereDeBloc(bloc);
-
-    // Ajout immédiat à la scène — le culling frustum l'enlèvera si nécessaire
-    _scene.add(group);
-    _blockMeshes.set(key, { group, sphere, inScene: true });
-  }
-
-  _loadedCols.set(col, true);
+  // Ajout immédiat à la scène — le culling frustum l'enlèvera si nécessaire
+  _scene.add(group);
+  _blockMeshes.set(key, { group, sphere, inScene: true, bloc });
 }
 
-function _dechargerColonne(col) {
-  const blocs = _blocksByCol.get(col);
-  if (blocs) {
-    for (const bloc of blocs) {
-      const key = `${col},${bloc.row}`;
-      const entry = _blockMeshes.get(key);
-      if (!entry) continue;
-      if (entry.inScene) _scene.remove(entry.group);
-      entry.group.traverse(o => {
-        if (o.geometry) o.geometry.dispose();
-        if (o.material) {
-          if (Array.isArray(o.material)) o.material.forEach(m => m.dispose());
-          else o.material.dispose();
-        }
-      });
-      _blockMeshes.delete(key);
+function _dechargerBloc(key) {
+  const entry = _blockMeshes.get(key);
+  if (!entry) return;
+  if (entry.inScene) _scene.remove(entry.group);
+  entry.group.traverse(o => {
+    if (o.geometry) o.geometry.dispose();
+    if (o.material) {
+      if (Array.isArray(o.material)) o.material.forEach(m => m.dispose());
+      else o.material.dispose();
     }
-  }
-  _loadedCols.delete(col);
+  });
+  _blockMeshes.delete(key);
 }
 
 // Correspondance direction après rotation 90° CW : N→E→S→O→N

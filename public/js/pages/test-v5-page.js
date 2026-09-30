@@ -138,7 +138,7 @@ let _speedStat       = 1.6;  // stat normalisée (1 = aucun voxel rouge)
 let _accelStat       = 1.6;  // stat normalisée (1 = aucun voxel bleu)
 let _punitivite      = 1.0;   // multiplicateur punitivité dommages (0.1–3.0)
 let _vitesseMinCasse = 8.0;   // seuil de vitesse pour casse (0–20 m/s)
-let _mapSize         = 4;     // taille de grille map (partagée X et Y)
+let _mapSize         = 20;    // taille de grille map (X et Y) — relue dans map.gridCols
 let _clotureActive   = true;  // clôture aux bornes du monde (F)
 let _fenceCfg        = null;  // config map.fence
 let _fenceBounds     = null;  // bornes courantes, ou null si désactivée
@@ -1496,9 +1496,9 @@ function _majTailleMap(taille) {
     avert.textContent = `${taille}×${taille} : génération lente (~1 s, parfois plusieurs), `
       + 'labyrinthe quasi sans boucle et traversée de plusieurs minutes.';
     avert.style.display = '';
-  } else if (taille > 16) {
-    avert.textContent = `${taille}×${taille} : génération plus lente, peu de boucles — `
-      + 'beaucoup d\'impasses.';
+  } else if (taille > 24) {
+    avert.textContent = `${taille}×${taille} : génération plus lente et traversée longue `
+      + '(plusieurs minutes).';
     avert.style.display = '';
   } else {
     avert.style.display = 'none';
@@ -1629,6 +1629,8 @@ async function init() {
   _physConsts      = cfgPhys.physics;
   setCollisionConfig(cfgPhys.physics); // WALL_TOP_LEVEL : sauter par-dessus les murs
   _vehicleStatsCfg = cfgPhys.vehicleStats;
+  // Taille de map par défaut : la même que le multijoueur (map.gridCols)
+  _majTailleMap(cfgPhys.map?.gridCols ?? _mapSize);
   _majLibelleTaille();
   _soloCfg         = cfgPhys.solo ?? {};
   _blockScaleConfig = cfgPhys.map?.blockScale ?? 2;

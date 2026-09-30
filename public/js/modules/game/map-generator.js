@@ -479,7 +479,9 @@ export async function generate(poolData, options = {}) {
   const legacyBlocks = pool.filter(b => !hasProcgenExits(b));
 
   if (seedBlocks.length >= 3) {
-    const gridSize    = options.gridSize ?? mapCfg.procgenGridSize ?? 4;
+    // Taille par défaut : map.gridCols de gameplay.json (la clé procgenGridSize
+    // lue ici auparavant n'a jamais existé dans la config : repli silencieux sur 4)
+    const gridSize    = options.gridSize ?? mapCfg.gridCols ?? 4;
     const spawnSpread = cfg.solo?.SPAWN_SPREAD ?? 1.5;
     const corners = {
       entryBlock: depart  ?? EMPTY_PLAT_BLOCK,
