@@ -25,16 +25,15 @@ import * as movables    from '../modules/game/movables.js';
 import * as mapLoader   from '../modules/game/map-loader.js';
 import { buildFence, disposeFence } from '../modules/game/fence.js';
 import { checkTerrain, boundsFromExtent, setConfig as setCollisionConfig, POLE_RADIUS_RATIO, CUBE_SIZE_RATIO } from '../modules/game/collision.js';
-import { loadPool, generate, BLOCK_SIZE, getSurfaceGrip } from '../modules/game/map-generator.js';
-import { applyImpactDamage } from '../modules/voxel/impact.js';
-import { recalcStats, recalcPowers } from '../modules/voxel/stats.js';
+import { loadPool, generate, BLOCK_SIZE } from '../modules/game/map-generator.js';
+import { resolveImpact } from '../modules/voxel/impact.js';
 import { initMinimap, updateMinimap, disposeMinimap } from '../modules/game/minimap.js';
 import { V4_TEST_BLOCKS, trouverSpawnRampe } from '../modules/game/test-blocks-v4.js';
 import { construirePisteMesure, construirePisteEffets } from '../modules/game/test-track.js';
 import { createTurnAnalyzer, sampleTurn, getTurnReport } from '../modules/game/turn-analyzer.js';
 import { renderTurnPanel } from '../modules/game/turn-view.js';
 import { buildNavGrid } from '../modules/game/navigation.js';
-import { assistSteering } from '../modules/game/steer-assist.js';
+import { createVehicleSim, tickVehicle, bodyShape } from '../modules/game/vehicle-tick.js';
 
 // Banc d'essai V4 (?v4=1) : remplace le pool de blocs par des blocs de test
 // déterministes (rampes dans les 4 directions, plateaux, bosses).
@@ -47,12 +46,15 @@ let _reperesPiste = [];
 
 // ---- Constantes ----
 
-const VEHICLE_SCALE = 0.28;
+// Taille monde d'un voxel du véhicule : physics.vehicleScale dans gameplay.json,
+// réglable en direct (curseur « Taille du véhicule »). Elle vaut aussi pour les
+// chocs : un véhicule plus gros trouve les couloirs plus étroits.
+const ECHELLE_DEFAUT = 0.28;
+const _echelle = () => _physConsts?.vehicleScale ?? ECHELLE_DEFAUT;
+// Hauteur du centre du véhicule au-dessus du sol, proportionnelle à sa taille
+// (0,4 u calé à l'origine pour l'échelle 0,28)
+const _hauteurCaisse = () => 0.4 * _echelle() / ECHELLE_DEFAUT;
 
-// Carrosserie du véhicule pour les chocs : la grille voxel fait 8 × 4 cases
-function _formeCarrosserie(angle) {
-  return { angle, demiLongueur: 8 * VEHICLE_SCALE / 2, demiLargeur: 4 * VEHICLE_SCALE / 2 };
-}
 const CAR_ID        = 'joueur-solo-v3';
 
 const ADJECTIFS = [
@@ -118,16 +120,9 @@ let _vehiclePregenere = null; // véhicule choisi dans l'écran de démarrage
 let _voxelsTotal    = 0;
 let _voxelsRestants = 0;
 
-let _terrainState     = { lastTerrain: null, onRamp: false, boostTimer: 0, rampTimer: 0 };
-let _stuckTimer       = 0;   // durée continue en hardCollision (secondes)
-let _autoReverseTimer = 0;   // durée restante de recul automatique (secondes)
-// Un choc est un événement, pas un état : sans ce verrou, une voiture plaquée
-// contre un mur encaissait des dégâts à chaque frame et reconstruisait son mesh
-// voxel à chaque frame — elle se désintégrait sur place et la page s'effondrait.
-let _enContactMur = false;
-
-const STUCK_THRESHOLD       = 0.4;  // secondes avant déclenchement du recul
-const AUTO_REVERSE_DURATION = 0.8;  // secondes de recul automatique
+// État de simulation du joueur (vehicle-tick) ; _carState en est la voiture
+let _sim = null;
+let _dtFrame = 0;   // dt de la frame courante, pour les effets au taux par seconde
 
 // Physique V2
 let _physConsts      = null;
@@ -766,21 +761,15 @@ function _resetVoiture() {
   const blocsCharges = mapLoader.getActiveBlocks();
   const spawnRampe   = MODE_V4 && !MODE_PISTE
     ? trouverSpawnRampe({ blockScale: _map.blockScale, blocks: blocsCharges }, c =>
-        !checkTerrain({ x: c.x, z: c.z }, blocsCharges, _map.blockScale, 0, _formeCarrosserie(c.angle), _fenceBounds).hardCollision)
+        !checkTerrain({ x: c.x, z: c.z }, blocsCharges, _map.blockScale, 0, bodyShape(c.angle, _echelle()), _fenceBounds).hardCollision)
     : null;
   const spawn = spawnRampe
     ?? _map.entry?.spawnPositions?.[0]
     ?? _map.startPosition;
-  _carState = physics.createState({
-    x:     spawn.x,
-    z:     spawn.z,
-    angle: spawn.angle ?? 0,
-  });
+  _sim = createVehicleSim(spawn);
+  _sim.degats = _degats;   // la voiture repart avec ses voxels en moins
+  _carState   = _sim.car;
   _arrivee          = false;
-  _terrainState     = { lastTerrain: null, onRamp: false, boostTimer: 0, rampTimer: 0 };
-  _stuckTimer       = 0;
-  _autoReverseTimer = 0;
-  _enContactMur     = false;
   // La voiture est téléportée au départ : sans remise à zéro, ce saut de position
   // serait lu comme un virage absurde.
   _analyseur        = createTurnAnalyzer();
@@ -796,7 +785,17 @@ function _resetVoiture() {
 
 // ---- Chargement ou génération d'un véhicule ----
 
-async function _chargerVehicule(data) {
+async function _chargerVehicule(data, { statsDepuisVehicule = true } = {}) {
+  // Les couleurs du véhicule donnent le point de départ des curseurs de
+  // conduite (même calcul que le serveur : stat / base, 1 = aucun voxel). Les
+  // curseurs restent là pour ajuster par-dessus.
+  const vs = _vehicleStatsCfg;
+  if (statsDepuisVehicule && vs && data.stats) {
+    _speedStat = data.stats.speed / vs.baseSpeed;
+    _gripStat  = data.stats.grip  / vs.baseGrip;
+    _accelStat = data.stats.accel / vs.baseAccel;
+    _syncSliders();
+  }
   // Copie profonde de la grille et des stats d'origine (référence pour recalcStats)
   _vehicleData = {
     ...data,
@@ -818,7 +817,7 @@ async function _chargerVehicule(data) {
     _vehicleGroup.clear();
   }
   _vehicleGroup = buildVehicleGroup(_vehicleData);
-  _vehicleGroup.scale.set(VEHICLE_SCALE, VEHICLE_SCALE, VEHICLE_SCALE);
+  _vehicleGroup.scale.setScalar(_echelle());
   _scene.add(_vehicleGroup);
 
   powers.dispose();
@@ -850,9 +849,9 @@ function _mettreAJourMeshVehicule() {
     _vehicleGroup.clear();
   }
   _vehicleGroup = buildVehicleGroup(_vehicleData);
-  _vehicleGroup.scale.set(VEHICLE_SCALE, VEHICLE_SCALE, VEHICLE_SCALE);
+  _vehicleGroup.scale.setScalar(_echelle());
   if (_carState) {
-    _vehicleGroup.position.set(_carState.position.x, 0.4, _carState.position.z);
+    _vehicleGroup.position.set(_carState.position.x, _hauteurCaisse(), _carState.position.z);
     _vehicleGroup.rotation.y = -_carState.angle;
   }
   _scene.add(_vehicleGroup);
@@ -880,57 +879,97 @@ async function _vehiculeSuivant() {
   $('btn-vehicule').disabled = false;
 }
 
-// ---- Effets visuels SOLO-04 (pole, movable) ----
+// ---- Mise en scène des événements de conduite ----
 
-function _appliquerEffetSpecial(type, deltaV, velocityImpact) {
-  if (!_carState) return;
-  const pos = _carState.position;
+// Le module vehicle-tick fait avancer la voiture et raconte ce qui s'est passé ;
+// ici on en tire les secousses, étincelles, poussières et relevés de debug.
+function _mettreEnSceneEvenements(ev) {
+  const terrain = ev.terrain;
+  _dernierTerrain = terrain?.hardCollision ? 'mur' : (terrain?.softTerrain ?? null);
 
-  if (type === 'pole') {
-    // Détruire le poteau le plus proche si deltaV > seuil
-    const seuil = _physConsts?.POLE_BREAK_THRESHOLD ?? 5.0;
-    // deltaV vaut undefined quand le choc n'a pas causé de dégât : sans ce
-    // garde-fou la comparaison est fausse et le poteau cassait au moindre frôlement.
-    if (!Number.isFinite(deltaV) || deltaV < seuil) return;
-    let closest = null, distMin = Infinity;
-    for (const [key, entry] of _poleMeshes) {
-      const mx = entry.mesh.position.x;
-      const mz = entry.mesh.position.z;
-      const d  = Math.sqrt((mx - pos.x) ** 2 + (mz - pos.z) ** 2);
-      if (d < distMin && d < _map.blockScale * 2) { distMin = d; closest = { key, entry }; }
+  if (ev.boostEntered)  camera.kick(-(_physConsts?.BOOST_ZOOM ?? 3));   // la vue se resserre : vitesse
+  if (ev.stickyEntered) camera.kick(_physConsts?.STICKY_ZOOM ?? 2.5);   // la vue s'élargit : on s'enlise
+
+  if (ev.landed) {
+    camera.shake(ev.landed.impact * (_physConsts?.LANDING_SHAKE ?? 0.25));
+    if (_effetsActifs) kickSquash(_vehicleGroup, ev.landed.impact, _physConsts);
+    const reception = ev.landed.reception;
+    _derniereReception = reception.perte > 0
+      ? `${(reception.desalignement * 100).toFixed(0)} % de travers · −${(reception.perte * 100).toFixed(0)} % vitesse`
+      : 'propre';
+    if (_effetsActifs) {
+      particles.emitLanding({ x: _carState.position.x, y: _carState.y + 0.1, z: _carState.position.z }, 8);
     }
-    if (closest) {
-      closest.entry.mesh.visible = false;
-      // Retirer la cellule de la grille → le prochain checkTerrain passe au travers
-      closest.entry.bloc.grid[closest.entry.gz][closest.entry.gx] = null;
-      _poleMeshes.delete(closest.key);
-    }
-  } else if (type === 'movable') {
-    // Déplacer le cube déplaçable dans la direction du pushBack
-    let closest = null, distMin = Infinity;
-    for (const [, entry] of _movableMeshes) {
-      const mx = entry.mesh.position.x;
-      const mz = entry.mesh.position.z;
-      const d  = Math.sqrt((mx - pos.x) ** 2 + (mz - pos.z) ** 2);
-      if (d < distMin && d < _map.blockScale * 2) { distMin = d; closest = entry; }
-    }
-    if (closest) {
-      // Direction imposée : du véhicule vers le cube. Déduite de la vitesse du
-      // véhicule, elle renvoyait le cube en arrière dès qu'un rebond l'inversait.
-      const direction = {
-        x: closest.mesh.position.x - pos.x,
-        z: closest.mesh.position.z - pos.z,
-      };
-      const vitesse = velocityImpact
-        ? Math.sqrt(velocityImpact.x ** 2 + velocityImpact.z ** 2)
-        : _carState.speed;
-      // Le choc donne l'impulsion ; une voiture qui reste collée pousse au pas
-      movables.pousser(closest, direction, vitesse,
-        _physConsts?.CUBE_PUSH ?? 0.55, _physConsts?.CUBE_PUSH_CONTINU ?? 4);
-    }
-    return closest;   // l'appelant cale la voiture sur ce cube
   }
-  return null;
+
+  _majEtatAide(ev.aide);
+
+  const c = ev.contact;
+  if (c) {
+    // Étincelles de frottement : à chaque contact qui glisse le long de la paroi,
+    // pas seulement en drift. Le nombre suit la durée de contact (taux par
+    // seconde) pour ne pas dépendre du framerate.
+    const seuil = _physConsts?.scrapeMinSpeed ?? 2.0;
+    if (_effetsActifs && !c.pushingCube && c.tangentSpeed > seuil) {
+      const attendu = (_physConsts?.scrapeSparkRate ?? 25) * _dtFrame * (c.tangentSpeed / seuil);
+      const nb = Math.floor(attendu) + (Math.random() < attendu % 1 ? 1 : 0);
+      if (nb > 0) particles.emitSparks(
+        { x: _carState.position.x - c.normal.x * 0.5, y: 0.3,
+          z: _carState.position.z - c.normal.z * 0.5 },
+        c.normal, nb
+      );
+    }
+    if (c.fresh && c.dmg.damaged) _encaisserChoc(c);
+  }
+
+  if (ev.poleBroken) ev.poleBroken.entry.mesh.visible = false;
+
+  // Récompense de sortie de glisse (façon mini-turbo)
+  if (ev.driftCharge?.libere && _effetsActifs) {
+    camera.kick(-(_physConsts?.BOOST_ZOOM ?? 3) * 0.5 * ev.driftCharge.charge);
+  }
+
+  if (ev.dec) {
+    _mettreAJourDebugPhys(ev.dec, ev.driftInfo);
+    _mettreAJourFlechesDebug();
+  }
+}
+
+// Choc endommageant : voxels arrachés, stats et pouvoirs recalculés, mesh rebâti
+function _encaisserChoc(c) {
+  // Seuil = vitesse min casse / punitivité : plus punitivité est élevé, plus ça casse tôt
+  const res = resolveImpact(_vehicleData, c.dmg, _carState.angle, _vitesseMinCasse / _punitivite);
+  if (!res) return;
+
+  _degats      = res.degats;
+  _sim.degats  = _degats;
+  powers.removeVehicle(CAR_ID);
+  _powersHandle     = powers.createForVehicle(CAR_ID, _vehicleData.powers);
+  _playerPowerState = _powersHandle.powerState;
+
+  _mettreAJourMeshVehicule();
+  _mettreAJourHUD();
+  _verifierDestruction();
+
+  if (_effetsActifs) {
+    // Mini-cubes de couleur pour chaque voxel arraché
+    for (const rv of res.removedVoxels) {
+      particles.emit(
+        { x: _carState.position.x, y: 0.5 + rv.y * _echelle(), z: _carState.position.z },
+        COULEUR_HEX[rv.color] ?? '#ffffff',
+        1
+      );
+    }
+    // Étincelles de dommage (plus intenses)
+    particles.emitSparks({ x: _carState.position.x, y: 0.5, z: _carState.position.z }, c.normal, 12);
+  }
+
+  // Secousse proportionnelle à la vitesse d'impact
+  camera.shake(c.dmg.deltaSpeed * 0.3);
+
+  _nbChocs++;
+  _dernierDeltaV = c.dmg.deltaSpeed;
+  console.log(`[dommage] -${res.removedVoxels.length} voxels (Δv=${c.dmg.deltaSpeed.toFixed(1)} u/s)`);
 }
 
 // ---- Helpers debug physique ----
@@ -1062,6 +1101,16 @@ function _syncSliders() {
   if (sg2) sg2.value = _gripStat;
   const gv2 = $('grip-val');
   if (gv2) gv2.textContent = _gripStat.toFixed(2);
+}
+
+// Taille relative au réglage d'origine, et largeur du véhicule / largeur d'une case
+function _majLibelleTaille() {
+  const e   = _echelle();
+  const sl  = $('sl-taille');
+  if (sl) sl.value = e;
+  const el  = $('val-taille');
+  const cas = _map?.blockScale ?? _blockScaleConfig;
+  if (el) el.textContent = `×${(e / ECHELLE_DEFAUT).toFixed(2)} · ${(4 * e).toFixed(2)} u / ${cas} u`;
 }
 
 function _appliquerProfil(key) {
@@ -1357,7 +1406,7 @@ function _verifierDestruction() {
       grid:   _vehicleData.originalGrid.map(col => col.map(row => [...row])),
       stats:  { ..._vehicleData.originalStats },
       powers: { ..._vehicleData.originalPowers },
-    });
+    }, { statsDepuisVehicule: false });   // même véhicule : on garde les réglages
     await _regenererMap();
   }, 2500);
 }
@@ -1580,6 +1629,7 @@ async function init() {
   _physConsts      = cfgPhys.physics;
   setCollisionConfig(cfgPhys.physics); // WALL_TOP_LEVEL : sauter par-dessus les murs
   _vehicleStatsCfg = cfgPhys.vehicleStats;
+  _majLibelleTaille();
   _soloCfg         = cfgPhys.solo ?? {};
   _blockScaleConfig = cfgPhys.map?.blockScale ?? 2;
   _fenceCfg         = cfgPhys.map?.fence ?? {};
@@ -1763,6 +1813,14 @@ async function init() {
     $('val-pente').textContent = v.toFixed(2);
   });
 
+  // Taille du véhicule : mute _physConsts.vehicleScale, relu à chaque frame par
+  // la collision (vehicle-tick) comme par le rendu
+  $('sl-taille').addEventListener('input', e => {
+    if (_physConsts) _physConsts.vehicleScale = parseFloat(e.target.value);
+    _vehicleGroup?.scale.setScalar(_echelle());
+    _majLibelleTaille();
+  });
+
   // Plafonds globaux — mutent _physConsts, que la physique relit chaque frame
   for (const [idSl, cle] of [['sl-vmax', 'vmaxGlobal'],
                              ['sl-gripref', 'gripAccel'],
@@ -1853,6 +1911,7 @@ function _boucle(now) {
 
   const dt = Math.min(0.05, (now - _last) / 1000);
   _last = now;
+  _dtFrame = dt;
 
   if (_carState && _vehicleData && _vehicleGroup) {
     const inputs = controls.getInputs();
@@ -1860,100 +1919,8 @@ function _boucle(now) {
     mapLoader.update(_carState.position.x, _cam, _carState.position.z);
 
     const activeBlocks = mapLoader.getActiveBlocks();
-    // La clôture seule suffit à produire un contact : on interroge donc le terrain
-    // même sans bloc chargé, sinon sortir du pool rendrait la clôture inerte.
-    const terrain = (activeBlocks.length > 0 || _fenceBounds)
-      ? checkTerrain(_carState.position, activeBlocks, _map.blockScale, _carState.elevation,
-          _formeCarrosserie(_carState.angle), _fenceBounds)
-      : null;
 
-    _dernierTerrain = terrain?.hardCollision ? 'mur' : (terrain?.softTerrain ?? null);
-
-    if (terrain) {
-      const ts = _terrainState;
-      if (terrain.softTerrain === 'boost' && ts.lastTerrain !== 'boost') {
-        ts.boostTimer = 1.5;
-        camera.kick(-(_physConsts?.BOOST_ZOOM ?? 3));   // la vue se resserre : sensation de vitesse
-      }
-      if (terrain.softTerrain === 'sticky' && ts.lastTerrain !== 'sticky') {
-        camera.kick(_physConsts?.STICKY_ZOOM ?? 2.5);   // la vue s'élargit : on s'enlise
-      }
-      // RACE-C05 : entrée sur bosse → impulsion verticale
-      if (terrain.softTerrain === 'rampe_bosse' && ts.lastTerrain !== 'rampe_bosse') {
-        physics.applyBump(_carState, _physConsts.BUMP_IMPULSE ?? 2.0, _carState.speed, _physConsts);
-      }
-      // SOLO-04 : bosse directionnelle — même impulsion
-      if (terrain.softTerrain === 'bump' && ts.lastTerrain !== 'bump') {
-        physics.applyBump(_carState, _physConsts.BUMP_IMPULSE ?? 2.0, _carState.speed, _physConsts);
-      }
-      ts.lastTerrain = terrain.softTerrain;
-      ts.boostTimer  = Math.max(0, ts.boostTimer - dt);
-      ts.rampTimer   = Math.max(0, ts.rampTimer  - dt);
-
-    }
-
-    // V4 : physique verticale — la voiture épouse le relief, décolle quand le
-    // sol se dérobe, et retombe sous la gravité. Hors de tout bloc, solCible = 0
-    // donc elle retombe naturellement au niveau du sol.
-    const uniteElevation = PLATEAU_HEIGHT * (_map?.blockScale ?? 1);
-    const solCible       = (terrain?.elevationTarget ?? 0) * uniteElevation;
-    const surRampe = terrain?.softTerrain === 'rampe_pente'
-      || terrain?.softTerrain === 'ramp_n' || terrain?.softTerrain === 'ramp_s'
-      || terrain?.softTerrain === 'ramp_e' || terrain?.softTerrain === 'ramp_o';
-
-    const vertical = physics.tickVertical(_carState, solCible, dt, _physConsts, surRampe);
-    // checkTerrain raisonne en niveaux : en vol, la voiture survole les plateaux
-    // plus bas qu'elle au lieu d'être bloquée par leur bordure.
-    _carState.elevation = _carState.y / uniteElevation;
-
-    if (vertical.landed) {
-      camera.shake((vertical.impact ?? 0) * (_physConsts?.LANDING_SHAKE ?? 0.25));
-      if (_effetsActifs) kickSquash(_vehicleGroup, vertical.impact ?? 0, _physConsts);
-      const reception = physics.applyLandingPenalty(_carState, _physConsts);
-      _derniereReception = reception.perte > 0
-        ? `${(reception.desalignement * 100).toFixed(0)} % de travers · −${(reception.perte * 100).toFixed(0)} % vitesse`
-        : 'propre';
-      if (_effetsActifs) {
-        particles.emitLanding({ x: _carState.position.x, y: _carState.y + 0.1, z: _carState.position.z }, 8);
-      }
-    }
-
-    if (_physConsts && _vehicleStatsCfg) {
-      const surfaceGrip = getSurfaceGrip(terrain?.softTerrain ?? null);
-
-      // ---- Recul automatique si bloqué dans un mur ----
-      if (_autoReverseTimer > 0) {
-        _autoReverseTimer -= dt;
-        if (_autoReverseTimer <= 0) _stuckTimer = 0;
-      } else if (terrain?.hardCollision) {
-        _stuckTimer += dt;
-        if (_stuckTimer > STUCK_THRESHOLD) {
-          _autoReverseTimer = AUTO_REVERSE_DURATION;
-          _stuckTimer       = 0;
-        }
-      } else {
-        _stuckTimer = 0;
-      }
-      const isAutoReversing = _autoReverseTimer > 0;
-
-      const vmaxMult = _terrainState.boostTimer > 0 ? 1.5
-                     : terrain?.softTerrain === 'sticky' ? 0.5
-                     : 1.0;
-
-      // Les sliders de calibration remplacent directement les stats normalisées.
-      // Les pouvoirs subis se replient par-dessus, sur une valeur reconstruite à
-      // chaque frame — jamais stockée, sinon l'effet se cumulerait sans fin.
-      const fx = _effetsParCible[CAR_ID] ?? { speedMul: 1, gripMul: 1, accelMul: 1 };
-      // Les dégâts ramènent la stat vers 1, c'est-à-dire vers un véhicule sans
-      // aucun voxel de cette couleur : perdre tout son rouge revient à n'en
-      // avoir jamais eu. Un simple produit serait passé sous ce plancher.
-      const use = (stat, ratio) => 1 + (stat - 1) * ratio;
-      const statsNorm = {
-        speed_stat:  use(_speedStat, _degats.speed) * vmaxMult * fx.speedMul,
-        grip_stat:   use(_gripStat,  _degats.grip)  * fx.gripMul,
-        accel_stat:  use(_accelStat, _degats.accel) * fx.accelMul,
-      };
-
+    if (_physConsts) {
       // Mode boucle automatique : steer aléatoire, accélération permanente
       if (_autoLoop) {
         _autoTimer -= dt;
@@ -1962,235 +1929,31 @@ function _boucle(now) {
           _autoTimer = 0.5 + Math.random();
         }
       }
+      const steerBrut = _autoLoop ? _autoSteer : inputs.steering;
 
-      // V4 game feel : en l'air, plus aucune force du sol. Les pneus ne peuvent
-      // ni pousser ni rattraper la glisse, et le volant ne répond plus — la
-      // trajectoire est balistique, figée au décollage.
-      // Une petite bosse ne doit pas figer le pilotage : on ne coupe les forces
-      // du sol qu'au-delà d'une vraie hauteur de décollage.
-      const enVol = _carState.airborne
-        && _carState.hauteurSol > (_physConsts?.AIR_CONTROL_MIN_HEIGHT ?? 0.25);
-
-      // La rampe de volant agit même en vol : la main reste sur le volant, seule
-      // la réponse du véhicule est coupée.
-      const steerBrut   = _autoLoop ? _autoSteer : inputs.steering;
-      // Aide couloir : léger coup de volant vers le côté dégagé, avant la rampe
-      // de volant pour qu'elle soit lissée comme une vraie entrée du joueur.
-      const aide = _aideActive
-        ? assistSteering(_navJoueur, _carState, steerBrut, _physConsts?.steerAssist)
-        : null;
-      _majEtatAide(aide);
-      const steerLisse  = physics.rampSteering(_carState, aide?.steer ?? steerBrut, dt, _physConsts);
-      const steeringEff = enVol ? 0 : steerLisse;
-      const throttle = enVol             ? 0
-                     : isAutoReversing   ? -1
-                     : (!_autoLoop && inputs.reversing)  ? -1
-                     : (!_autoLoop && inputs.braking)    ? -0.8
-                     : 1;
-
-      // En mode recul automatique on bypasse le bloc collision pour laisser
-      // computeForces établir la velocity arrière — sinon elle est annulée chaque frame.
-      if (terrain?.hardCollision && !isAutoReversing) {
-        // Premier frame de contact seulement : c'est le choc. Les frames suivantes
-        // sont du frottement contre la paroi, pas un nouvel impact.
-        const chocFrais = !_enContactMur;
-        _enContactMur   = true;
-
-        // Pousser un cube n'est ni un rebond ni un blocage : la voiture le suit.
-        const pousseCube = terrain.hardCellType === 'movable';
-        if (terrain.pushBack) {
-          const velocityBefore = { x: _carState.velocity.x, z: _carState.velocity.z };
-          const pbLen = Math.sqrt(terrain.pushBack.x ** 2 + terrain.pushBack.z ** 2);
-          const wallNormal = pbLen > 0.001
-            ? { x: terrain.pushBack.x / pbLen, z: terrain.pushBack.z / pbLen }
-            : null;
-
-          // Contre un mur : rebond. Contre un cube : on le pousse d'abord, puis la
-          // voiture cale sa vitesse sur la sienne au lieu de rebondir dessus.
-          const bounced = pousseCube
-            ? movables.suivreCube(
-                _carState.velocity, terrain.pushBack,
-                _appliquerEffetSpecial('movable', undefined, velocityBefore),
-              )
-            : physics.applyBounce(
-                _carState.velocity, terrain.pushBack, _physConsts.restitution, _physConsts,
-              );
-          _carState.velocity.x = bounced.x;
-          _carState.velocity.z = bounced.z;
-          _carState.speed      = Math.sqrt(bounced.x ** 2 + bounced.z ** 2);
-          _carState.position.x += terrain.pushBack.x;
-          _carState.position.z += terrain.pushBack.z;
-
-          if (wallNormal) {
-            // Étincelles de frottement : à chaque contact qui glisse le long de la
-            // paroi, pas seulement en drift. Le nombre suit la durée de contact
-            // (taux par seconde) pour ne pas dépendre du framerate.
-            if (_effetsActifs && !pousseCube) {
-              const vn = velocityBefore.x * wallNormal.x + velocityBefore.z * wallNormal.z;
-              const vtx = velocityBefore.x - vn * wallNormal.x;
-              const vtz = velocityBefore.z - vn * wallNormal.z;
-              const vTangente = Math.sqrt(vtx * vtx + vtz * vtz);
-              const seuil = _physConsts?.scrapeMinSpeed ?? 2.0;
-              if (vTangente > seuil) {
-                const attendu = (_physConsts?.scrapeSparkRate ?? 25) * dt * (vTangente / seuil);
-                const nb = Math.floor(attendu) + (Math.random() < attendu % 1 ? 1 : 0);
-                if (nb > 0) particles.emitSparks(
-                  { x: _carState.position.x - wallNormal.x * 0.5, y: 0.3,
-                    z: _carState.position.z - wallNormal.z * 0.5 },
-                  wallNormal, nb
-                );
-              }
-            }
-
-            // RACE-D01 : vérification du seuil de dommage
-            const dmg = physics.checkDamage(
-              velocityBefore, bounced, wallNormal, _carState.position
-            );
-            if (chocFrais && dmg.damaged && _vehicleData?.grid && _vehicleData.originalGrid) {
-              // RACE-D02 : raycasting et retrait des voxels
-              // Seuil = vitesse min casse / punitivité : plus punitivité est élevé, plus ça casse tôt
-              const effectiveThreshold = _vitesseMinCasse / _punitivite;
-              const { newGrid, removedVoxels } = applyImpactDamage(
-                _vehicleData.grid,
-                { ...dmg, vehicleAngle: _carState.angle, DAMAGE_THRESHOLD: effectiveThreshold }
-              );
-              if (removedVoxels.length > 0) {
-                _vehicleData.grid = newGrid;
-
-                // RACE-D03 : mise à jour des stats proportionnellement aux voxels restants
-                const recalc = recalcStats(newGrid, _vehicleData.originalGrid);
-                _vehicleData.stats = {
-                  speed: _vehicleData.originalStats.speed * recalc.stats.speed,
-                  grip:  _vehicleData.originalStats.grip  * recalc.stats.grip,
-                  accel: _vehicleData.originalStats.accel * recalc.stats.accel,
-                };
-
-                // Perdre du bleu affaiblit le sillage, du orange le bouclier…
-                _degats = recalc.stats;
-                _vehicleData.powers = recalcPowers(
-                  newGrid, _vehicleData.originalGrid, _vehicleData.originalPowers);
-                powers.removeVehicle(CAR_ID);
-                _powersHandle     = powers.createForVehicle(CAR_ID, _vehicleData.powers);
-                _playerPowerState = _powersHandle.powerState;
-
-                _mettreAJourMeshVehicule();
-                _mettreAJourHUD();
-                _verifierDestruction();
-
-                // Mini-cubes de couleur pour chaque voxel arraché (Story 4.3)
-                for (const rv of (_effetsActifs ? removedVoxels : [])) {
-                  const hex = COULEUR_HEX[rv.color] ?? '#ffffff';
-                  particles.emit(
-                    { x: _carState.position.x, y: 0.5 + rv.y * VEHICLE_SCALE, z: _carState.position.z },
-                    hex,
-                    1
-                  );
-                }
-
-                // Étincelles de dommage (plus intenses)
-                if (_effetsActifs) particles.emitSparks(
-                  { x: _carState.position.x, y: 0.5, z: _carState.position.z },
-                  wallNormal, 12
-                );
-
-                // Story 7.3 : screen shake proportionnel à la vitesse d'impact
-                camera.shake(dmg.deltaSpeed * 0.3);
-
-                _nbChocs++;
-                _dernierDeltaV = dmg.deltaSpeed;
-                console.log(`[dommage] -${removedVoxels.length} voxels (Δv=${dmg.deltaSpeed.toFixed(1)} u/s)`);
-              }
-            }
-
-            // SOLO-04 : poteau cassé si le choc est fort (le cube est poussé plus haut)
-            if (terrain.hardCellType === 'pole') {
-              _appliquerEffetSpecial('pole', dmg.deltaSpeed, velocityBefore);
-            }
-          }
-        } else {
-          _carState.velocity.x = 0;
-          _carState.velocity.z = 0;
-          _carState.speed      = 0;
-        }
-
-        // Appliquer la velocity rebondie à la position pour sortir du mur.
-        // Sans ça le véhicule reste bloqué : la position n'est corrigée que par
-        // pushBack (minuscule) et la velocity rebondie n'est jamais utilisée.
-        _carState.position.x += _carState.velocity.x * dt;
-        _carState.position.z += _carState.velocity.z * dt;
-
-        // Amortissement par frame contre un mur pour éviter les oscillations —
-        // pas en poussant un cube, sinon la voiture ne le suivrait jamais.
-        if (!pousseCube) {
-          _carState.velocity.x *= 0.92;
-          _carState.velocity.z *= 0.92;
-        }
-        _carState.speed = Math.sqrt(_carState.velocity.x ** 2 + _carState.velocity.z ** 2);
-
-        // Un choc annule la charge de dérapage : on ne récompense pas une glisse
-        // qui se termine dans un mur.
-        _carState.drifting = false;
-        _carState.driftTime = 0;
-      } else {
-        // Pas de collision (ou auto-reverse actif : on laisse les forces s'appliquer)
-        _enContactMur = false;
-
-        // Si auto-reverse en collision : pousser hors du mur avant d'appliquer les forces
-        if (isAutoReversing && terrain?.hardCollision && terrain.pushBack) {
-          _carState.position.x += terrain.pushBack.x * 2;
-          _carState.position.z += terrain.pushBack.z * 2;
-        }
-
-        const dec       = physics.decompose(_carState.velocity, _carState.angle);
-        const driftInfo = physics.detectDrift(
-          dec, _physConsts, statsNorm, surfaceGrip, _carState.drifting,
-        );
-        _carState.drifting = enVol ? false : driftInfo.is_drifting;
-
-        // Adhérence nulle en vol : aucune correction latérale, la voiture
-        // conserve exactement l'élan qu'elle avait en quittant le sol.
-        const newV = physics.computeForces(
-          _carState, { throttle }, statsNorm, dt, _physConsts,
-          enVol ? 0 : driftInfo.lateralGrip,
-        );
-        _carState.velocity.x = newV.x;
-        _carState.velocity.z = newV.z;
-
-        // La pente agit sur le vecteur vitesse : on freine en montant, on
-        // accélère en descendant.
-        physics.applySlopeGravity(
-          _carState, terrain?.rampe, PLATEAU_HEIGHT * (_map?.blockScale ?? 1), dt, _physConsts,
-        );
-
-        // Boost / collant : agissent sur la vitesse réelle, pas sur un plafond
-        // qu'on n'atteint jamais.
-        if (_terrainState.boostTimer > 0) {
-          const a = (_physConsts?.BOOST_ACCEL ?? 14) * dt;
-          _carState.velocity.x += Math.cos(_carState.angle) * a;
-          _carState.velocity.z += Math.sin(_carState.angle) * a;
-        }
-        if (terrain?.softTerrain === 'sticky') {
-          const k = Math.max(0, 1 - (_physConsts?.STICKY_DRAG ?? 1.6) * dt);
-          _carState.velocity.x *= k;
-          _carState.velocity.z *= k;
-        }
-
-        const turn_rate = physics.computeTurnRate(steeringEff, dec, driftInfo, _physConsts);
-        _carState.angle += turn_rate * dt;
-
-        _carState.position.x += _carState.velocity.x * dt;
-        _carState.position.z += _carState.velocity.z * dt;
-        _carState.speed = driftInfo.v_speed;
-
-        // Récompense de sortie de glisse (façon mini-turbo)
-        const charge = physics.tickDriftCharge(_carState, dt, _physConsts);
-        if (charge.libere && _effetsActifs) {
-          camera.kick(-(_physConsts?.BOOST_ZOOM ?? 3) * 0.5 * charge.charge);
-        }
-
-        _mettreAJourDebugPhys(dec, driftInfo);
-        _mettreAJourFlechesDebug();
-      }
+      // Toute la conduite passe par le module partagé avec le serveur ; la page
+      // ne fait plus que mettre en scène les événements qu'il raconte.
+      const ev = tickVehicle(_sim, {
+        steering:  steerBrut,
+        braking:   !_autoLoop && inputs.braking,
+        reversing: !_autoLoop && inputs.reversing,
+      }, {
+        blocks:        activeBlocks,
+        blockScale:    _map.blockScale,
+        bounds:        _fenceBounds,
+        nav:           _navJoueur,
+        consts:        _physConsts,
+        plateauHeight: PLATEAU_HEIGHT,
+        vehicleScale:  _echelle(),
+        cubes:         _movableMeshes.values(),
+        poles:         _poleMeshes,
+      }, dt, {
+        // Les curseurs de calibration remplacent les stats du véhicule
+        stats:  { speed: _speedStat, grip: _gripStat, accel: _accelStat },
+        fx:     _effetsParCible[CAR_ID],
+        assist: _aideActive,
+      });
+      _mettreEnSceneEvenements(ev);
 
       // Forme du virage : échantillonnée à chaque frame, choc compris, pour que la
       // trajectoire mesurée soit continue. On passe l'entrée brute : le virage
@@ -2207,7 +1970,7 @@ function _boucle(now) {
     // V4 : la hauteur vient entièrement de la physique verticale (relief + vol)
     _vehicleGroup.position.set(
       _carState.position.x,
-      0.4 + _carState.y,
+      _hauteurCaisse() + _carState.y,
       _carState.position.z,
     );
     _vehicleGroup.rotation.y = -_carState.angle;
@@ -2230,7 +1993,7 @@ function _boucle(now) {
     _vehicleGroup.rotation.z += (pitchCible - _vehicleGroup.rotation.z) * 0.25;
 
     trail.push(
-      { x: _carState.position.x, y: 0.4 + _carState.y, z: _carState.position.z },
+      { x: _carState.position.x, y: _hauteurCaisse() + _carState.y, z: _carState.position.z },
       _carState.airborne,
     );
 

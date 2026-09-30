@@ -108,6 +108,7 @@ Dimensions : `DIM_X = 8`, `DIM_Z = 4`, `DIM_Y = 4`.
              trail · movables · bot · test-blocks-v4 · test-track
              cohesion (calcul) · cohesion-view · fence · navigation · power-effects
              turn-analyzer · turn-view · steer-assist (aide couloir)
+             vehicle-tick (boucle de conduite partagée solo / serveur)
   network/   client · lobby · sync
   storage/   local · gallery
 
@@ -125,6 +126,10 @@ Dimensions : `DIM_X = 8`, `DIM_Z = 4`, `DIM_Y = 4`.
 | `game/map-generator.js` | `setConfig`, `generate`, `getSurfaceGrip`, `dedupePoolById`, `BLOCK_SIZE` |
 
 Contrainte : ces modules doivent rester **du JS pur**, sans `document`, `window` ni Three.js, sinon le serveur casse.
+
+**Depuis le 30/09 — `game/vehicle-tick.js`** : la boucle de conduite complète (terrain, sauts, rampes, bosses, boost/collant, recul auto, rebond et frottement contre les murs, cubes poussables, poteaux cassables, aide couloir, forces et glisse) est sortie de `test-v5-page.js` dans ce module pur. `test-v5` l'utilise déjà ; il raconte ce qui s'est passé via un objet d'événements (atterrissage, contact, poteau cassé, sortie de glisse), dont la page tire ses effets visuels. Équivalence vérifiée au bit près contre l'ancienne boucle (12 maps × 30 s). `voxel/impact.js → resolveImpact()` regroupe la perte de voxels et le recalcul des stats/pouvoirs pour qu'elle suive les mêmes règles partout.
+
+⚠ `server/game-loop.js` n'utilise **pas encore** `vehicle-tick.js` : il garde sa propre version plus ancienne de la boucle (hauteur approximative, pas de sauts, pas de cubes/poteaux, pas d'aide couloir, collision sans forme de carrosserie). C'est l'étape suivante du passage serveur. Les bots (`game/bot.js`) ont aussi leur propre version simplifiée.
 
 ---
 

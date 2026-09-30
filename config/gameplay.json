@@ -64,6 +64,7 @@
     "DAMAGE_THRESHOLD": 2,
 
     "mass":                800,
+    "vehicleScale":        0.28,
     "vmaxGlobal":          13.0,
 
     "engineAccel":         8.0,

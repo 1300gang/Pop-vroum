@@ -1013,6 +1013,14 @@
         <div class="aide">Perte de vitesse (u/s) en dessous de laquelle un choc
           n'abîme rien du tout.</div>
 
+        <div class="cal-section">Gabarit</div>
+        <div class="cal-row"><span class="cal-lbl">Taille du véhicule</span><span class="cal-val calc" id="val-taille">–</span></div>
+        <input type="range" id="sl-taille" min="0.16" max="0.5" step="0.01" value="0.28">
+        <div class="aide">Taille de la voiture face aux couloirs (une case de map
+          mesure 2 u). Plus grosse = couloirs plus étroits, murs plus proches, jeu
+          plus difficile. Vaut aussi pour les chocs, pas seulement pour l'image.
+          La valeur retenue se reporte dans <code>physics.vehicleScale</code>.</div>
+
         <div class="cal-section">Plafonds</div>
         <div class="aide">Les vraies bornes de la conduite. Les curseurs du dessus ne
           font que placer le véhicule <i>entre</i> un plancher et ces plafonds ; c'est

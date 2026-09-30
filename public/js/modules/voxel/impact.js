@@ -20,6 +20,8 @@
 //   4. Mélanger aléatoirement ces voxels exposés et en retirer N.
 //   N = clamp(floor(deltaSpeed / DAMAGE_THRESHOLD), 1, 4).
 
+import { recalcStats, recalcPowers } from './stats.js';
+
 /**
  * Applique des dommages d'impact sur la grille voxel.
  *
@@ -100,4 +102,40 @@ function _shuffleInPlace(arr) {
     const j = Math.floor(Math.random() * (i + 1));
     [arr[i], arr[j]] = [arr[j], arr[i]];
   }
+}
+
+/**
+ * Résout un choc sur un véhicule complet : retire les voxels, puis recalcule
+ * ses stats et ses pouvoirs au prorata de ce qui reste. Partagé entre le solo et
+ * le serveur, pour que la perte de voxels suive partout les mêmes règles.
+ *
+ * Mute `vehicle` (grid, stats, powers). Il doit porter originalGrid,
+ * originalStats et originalPowers — les références prises au chargement, sans
+ * lesquelles un pouvoir déjà amoindri servirait de base au calcul suivant.
+ *
+ * @param {object} vehicle — { grid, originalGrid, originalStats, originalPowers, … }
+ * @param {object} dmg — sortie de physics.checkDamage()
+ * @param {number} vehicleAngle
+ * @param {number} threshold — vitesse de choc par voxel arraché
+ * @returns {{ removedVoxels: Array, degats: {speed,grip,accel} } | null}
+ *   null si aucun voxel n'est tombé
+ */
+export function resolveImpact(vehicle, dmg, vehicleAngle, threshold) {
+  if (!vehicle?.grid || !vehicle.originalGrid) return null;
+  const { newGrid, removedVoxels } = applyImpactDamage(
+    vehicle.grid, { ...dmg, vehicleAngle, DAMAGE_THRESHOLD: threshold });
+  if (removedVoxels.length === 0) return null;
+
+  vehicle.grid = newGrid;
+  // Stats proportionnelles aux voxels restants
+  const recalc = recalcStats(newGrid, vehicle.originalGrid);
+  vehicle.stats = {
+    speed: vehicle.originalStats.speed * recalc.stats.speed,
+    grip:  vehicle.originalStats.grip  * recalc.stats.grip,
+    accel: vehicle.originalStats.accel * recalc.stats.accel,
+  };
+  // Perdre du bleu affaiblit le sillage, du orange le bouclier…
+  vehicle.powers = recalcPowers(newGrid, vehicle.originalGrid, vehicle.originalPowers);
+
+  return { removedVoxels, degats: recalc.stats };
 }
