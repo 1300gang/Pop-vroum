@@ -150,6 +150,16 @@ export function update(vehicleX, camera, vehicleZ) {
 }
 
 /**
+ * Change la distance de rendu en blocs (Chebyshev). La page de jeu l'élargit
+ * quand la caméra dézoome pour cadrer tout le groupe, sinon des trous
+ * apparaîtraient en bord d'écran.
+ * @param {number} n
+ */
+export function setRenderDistance(n) {
+  _renderDistance = n;
+}
+
+/**
  * Retourne les blocs actuellement chargés (pour la détection de collision).
  * Chaque bloc a { position: [wx, wz], grid: rotatedGrid }.
  * Inclut les blocs hors-frustum (la collision se base sur le pool chargé).

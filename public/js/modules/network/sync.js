@@ -1,175 +1,123 @@
-// Synchronisation temps réel client ↔ serveur — Story 5.4 / E03-S10
+// Synchronisation temps réel client ↔ serveur.
 //
 // Responsabilités :
-//   - Envoyer les inputs du joueur local au serveur à 30 Hz
-//   - Recevoir game:state et maintenir un snapshot courant
-//   - Interpolation linéaire entre les deux derniers snapshots pour les joueurs distants
-//   - Dead reckoning (extrapolation via velocity) pour le joueur local — réduit la latence perçue
+//   - Envoyer les commandes du joueur local au serveur à 30 Hz
+//   - Garder une courte file des états reçus (game:state)
+//   - Donner l'état des AUTRES véhicules avec un léger retard de rendu,
+//     interpolé entre deux états serveur : c'est ce qui les rend fluides.
+//     (Le véhicule local, lui, est prédit par la page — network/prediction.js.)
+//
+// Réécrit le 30/09 : l'ancienne version comparait l'id de connexion du socket
+// aux ids de joueurs, qui ne correspondent jamais — la voiture locale n'était
+// jamais reconnue comme telle. Tout est maintenant indexé par playerId.
 //
 // API publique :
-//   start(getInputsFn)             → lance l'envoi à 30 Hz
-//   stop()                         → arrête l'envoi
-//   getPlayerStates(nowMs)         → { [socketId]: { position, velocity, angle, speed, drifting, driftAngle, playerName } }
-//   getCohesion()                  → { value, isFull }
-//   getMatchId()                   → string | null
-//   getLocalSocketId()             → string | null
-//   onState(fn)                    → fn(rawState) à chaque tick serveur
-//   offState(fn)                   → désabonnement
+//   start(getInputsFn, opts)   → lance l'envoi à 30 Hz et l'écoute de game:state
+//   stop()
+//   onState(fn) / offState(fn) → fn(état brut) à chaque tick serveur
+//   getLatest()                → dernier état brut reçu (phase, cohésion, events…)
+//   getReceivedAt()            → performance.now() de sa réception
+//   getInterpolated(playerId, nowMs) → état lissé d'un véhicule, ou null
 
 import * as Client from './client.js';
 
-const INPUT_HZ  = 30;
-const INPUT_MS  = Math.round(1000 / INPUT_HZ);
-const TICK_MS   = 1000 / 30; // durée théorique d'un tick serveur
-
-// ---- État interne ----
+const INPUT_MS    = Math.round(1000 / 30);
+const FILE_MAX    = 20;       // ~0,7 s d'états serveur
 
 let _inputInterval = null;
 let _getInputsFn   = null;
+let _delai         = 100;     // retard de rendu (ms), network.interpDelayMs
+let _file          = [];      // [{ t, etat }] du plus ancien au plus récent
+const _cbs         = [];
 
-// Double-buffer pour interpolation
-let _prev     = null;   // avant-dernier snapshot
-let _curr     = null;   // dernier snapshot
-let _currTime = 0;      // performance.now() à la réception de _curr
-
-const _cbs = [];
-
-// ---- Envoi des inputs ----
+function _onState(etat) {
+  _file.push({ t: performance.now(), etat });
+  if (_file.length > FILE_MAX) _file.shift();
+  for (const fn of _cbs) fn(etat);
+}
 
 /**
- * Démarre l'envoi périodique des inputs et l'écoute de game:state.
- * @param {() => { steering: number, braking: number }} getInputsFn
+ * @param {() => { steering, braking, reversing }} getInputsFn
+ * @param {{ interpDelayMs?: number }} [opts]
  */
-export function start(getInputsFn) {
+export function start(getInputsFn, opts = {}) {
   _getInputsFn = getInputsFn;
+  _delai       = opts.interpDelayMs ?? 100;
+  _file        = [];
 
-  // Envoi à 30 Hz
   if (_inputInterval) clearInterval(_inputInterval);
   _inputInterval = setInterval(() => {
     if (!_getInputsFn || !Client.isConnected()) return;
     Client.sendInput(_getInputsFn());
   }, INPUT_MS);
 
-  // Écoute de l'état serveur
-  Client.onState(_onServerState);
+  Client.off('game:state', _onState);
+  Client.on('game:state', _onState);
 }
 
-/** Arrête l'envoi et le listener. */
 export function stop() {
   if (_inputInterval) clearInterval(_inputInterval);
   _inputInterval = null;
-  _getInputsFn   = null;
-  Client.off('game:state', _onServerState);
-  _prev = _curr = null;
+  Client.off('game:state', _onState);
 }
 
-// ---- Réception serveur ----
-
-function _onServerState(state) {
-  _prev     = _curr;
-  _curr     = state;
-  _currTime = performance.now();
-  for (const fn of _cbs) fn(state);
-}
-
-// ---- Lecture des états (avec interpolation) ----
-
-/**
- * Retourne les états de tous les joueurs pour le frame courant.
- *
- * - Joueur local      : dead reckoning — position extrapolée via velocity depuis
- *                       le dernier snapshot (élimine le délai d'un tick).
- * - Joueurs distants  : interpolation linéaire entre les deux derniers snapshots.
- * - velocity          : interpolée linéairement.
- * - driftAngle        : interpolé avec wrap ±π.
- *
- * @param {number} nowMs — performance.now() du frame de rendu
- * @returns {Object<string, { position, velocity, angle, speed, drifting, driftAngle, playerName }>|null}
- */
-export function getPlayerStates(nowMs) {
-  if (!_curr) return null;
-
-  const elapsed  = nowMs - _currTime;
-  const t        = Math.min(1, elapsed / TICK_MS);
-  const localId  = Client.getSocketId();
-  const result   = {};
-
-  for (const [sid, curr] of Object.entries(_curr.players)) {
-    const prev = _prev?.players?.[sid];
-
-    // ---- Joueur local : dead reckoning (E03-S10) ----
-    if (sid === localId && curr.velocity) {
-      const dtSec = Math.min(elapsed / 1000, 0.1);
-      result[sid] = {
-        ...curr,
-        position: {
-          x: curr.position.x + curr.velocity.x * dtSec,
-          z: curr.position.z + curr.velocity.z * dtSec,
-        },
-      };
-      continue;
-    }
-
-    // ---- Joueurs distants : interpolation linéaire ----
-    if (!prev) {
-      result[sid] = { ...curr };
-      continue;
-    }
-
-    result[sid] = {
-      playerName: curr.playerName,
-      speed:      curr.speed,
-      drifting:   curr.drifting,
-      position: {
-        x: prev.position.x + (curr.position.x - prev.position.x) * t,
-        z: prev.position.z + (curr.position.z - prev.position.z) * t,
-      },
-      angle:      _lerpAngle(prev.angle, curr.angle, t),
-      velocity: curr.velocity && prev.velocity ? {
-        x: prev.velocity.x + (curr.velocity.x - prev.velocity.x) * t,
-        z: prev.velocity.z + (curr.velocity.z - prev.velocity.z) * t,
-      } : curr.velocity,
-      driftAngle: curr.driftAngle !== undefined
-        ? _lerpAngle(prev.driftAngle ?? 0, curr.driftAngle, t)
-        : curr.driftAngle,
-    };
-  }
-  return result;
-}
-
-/** @returns {{ value: number, isFull: boolean }} */
-export function getCohesion() {
-  return _curr?.cohesion ?? { value: 0, isFull: false };
-}
-
-/** @returns {string|null} */
-export function getMatchId() {
-  return _curr?.matchId ?? null;
-}
-
-/** @returns {string|null} */
-export function getLocalSocketId() {
-  return Client.getSocketId();
-}
-
-// ---- Callbacks ----
-
-/** @param {function} fn — appelé avec le state brut à chaque tick serveur */
-export function onState(fn) { _cbs.push(fn); }
-
-/** @param {function} fn */
+export function onState(fn)  { _cbs.push(fn); }
 export function offState(fn) {
   const i = _cbs.indexOf(fn);
   if (i >= 0) _cbs.splice(i, 1);
 }
 
-// ---- Helpers ----
+/** Dernier état brut reçu, ou null. */
+export function getLatest() {
+  return _file.length ? _file[_file.length - 1].etat : null;
+}
 
-// Interpolation d'angle (gère le wrap autour de ±π)
+/** Instant (performance.now) de réception du dernier état. */
+export function getReceivedAt() {
+  return _file.length ? _file[_file.length - 1].t : 0;
+}
+
+/**
+ * État lissé d'un véhicule, rendu avec un léger retard : on interpole entre les
+ * deux états serveur qui encadrent (maintenant − retard). Sans encadrement
+ * possible (début de partie, paquet perdu), on prend le plus proche.
+ * @param {string} playerId
+ * @param {number} nowMs — performance.now()
+ * @returns {object|null} { position, y, vy, angle, velocity, speed, drifting, airborne, … }
+ */
+export function getInterpolated(playerId, nowMs) {
+  if (_file.length === 0) return null;
+  const cible = nowMs - _delai;
+
+  let a = null, b = null;
+  for (let i = _file.length - 1; i >= 0; i--) {
+    if (_file[i].t <= cible) { a = _file[i]; b = _file[i + 1] ?? null; break; }
+  }
+  const pa = a?.etat.players?.[playerId];
+  const pb = b?.etat.players?.[playerId];
+  if (!pa || !pb) {
+    // Hors de la fenêtre : l'état connu le plus proche
+    const proche = (a ?? _file[0]).etat.players?.[playerId];
+    return proche ? { ...proche } : null;
+  }
+
+  const t = Math.max(0, Math.min(1, (cible - a.t) / Math.max(1, b.t - a.t)));
+  const lerp = (u, v) => u + (v - u) * t;
+  return {
+    ...pb,
+    position: { x: lerp(pa.position.x, pb.position.x), z: lerp(pa.position.z, pb.position.z) },
+    velocity: { x: lerp(pa.velocity.x, pb.velocity.x), z: lerp(pa.velocity.z, pb.velocity.z) },
+    y:        lerp(pa.y ?? 0, pb.y ?? 0),
+    vy:       lerp(pa.vy ?? 0, pb.vy ?? 0),
+    speed:    lerp(pa.speed ?? 0, pb.speed ?? 0),
+    angle:    _lerpAngle(pa.angle, pb.angle, t),
+  };
+}
+
+// Interpolation d'angle (gère le passage de ±π)
 function _lerpAngle(a, b, t) {
-  let diff = b - a;
-  // Raccourci le chemin angulaire
-  if (diff > Math.PI)  diff -= 2 * Math.PI;
-  if (diff < -Math.PI) diff += 2 * Math.PI;
-  return a + diff * t;
+  let d = b - a;
+  while (d >  Math.PI) d -= 2 * Math.PI;
+  while (d < -Math.PI) d += 2 * Math.PI;
+  return a + d * t;
 }

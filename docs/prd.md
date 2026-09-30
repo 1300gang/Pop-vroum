@@ -159,10 +159,10 @@ Relevées le 16/09/2026 en comparant docs et code. Colonne « Au 24/09 » : éta
 
 | # | Constat | Impact | Au 24/09 |
 |---|---------|--------|----------|
-| 1 | `game:end` et `game:event` sont écoutés côté client mais **jamais émis** par le serveur. | Code mort ou fonctionnalité manquante (écran de fin). | Ouvert — phase serveur |
+| 1 | `game:end` et `game:event` sont écoutés côté client mais **jamais émis** par le serveur. | Code mort ou fonctionnalité manquante (écran de fin). | **Résolu le 30/09** — les événements passent dans `game:state.events`, l'écran de fin collectif existe ; les écouteurs `onEvent` / `onGameEnd` de `network/client.js` restent inutilisés |
 | 2 | `admin-routes.js` implémente la route HTTP `POST /admin/blocks` (option A), alors que la décision est l'export JSON manuel (option B). | Route active non voulue. À retirer ou assumer. | Ouvert — phase serveur |
 | 3 | `server/cohesion.js`, `game/cohesion.js`, `game/impact.js` sont des **fichiers d'une ligne** (stubs vides). La cohésion réelle vit dans `game-loop.js`, l'impact dans `voxel/impact.js`. | Fichiers fantômes qui trompent la lecture. | **Résolu** — stubs supprimés le 24/09 ; `game/cohesion.js` est devenu un vrai module |
-| 4 | `DAMAGE_THRESHOLD` est codé en dur à `8.0` dans `game-page.js` alors que `gameplay.json` déclare `4`. | Viole la règle « ne jamais hardcoder ». Le calibrage ne prend pas. | Ouvert — phase serveur (`game-page.js` = page multijoueur ; config à `2` désormais). `test-v5` utilise ses propres curseurs de casse |
+| 4 | `DAMAGE_THRESHOLD` est codé en dur à `8.0` dans `game-page.js` alors que `gameplay.json` déclare `4`. | Viole la règle « ne jamais hardcoder ». Le calibrage ne prend pas. | **Résolu le 30/09** — la page de jeu a été réécrite ; la perte de voxels est calculée par le serveur (`physics.voxelLossSpeed`) |
 | 5 | Le bouclier **est déjà dégressif** (`absorbDamage`, `shield.hp`), contrairement à ce qui était supposé. | La décision R8 (« intention future ») est à revoir : c'est déjà là. | Branché côté serveur, voir `prd_pouvoirs.md` §1 |
 | 6 | `scan-v2-sandwich.md` documente une convention x/z **inversée** par rapport au code. `builder-sandwich.js` signale l'écart et applique la bonne. | Piège pour toute future session. Le code fait foi (§ architecture). | Ouvert |
 | 7 | `index.html` présente encore `scan.html` (v1) comme étape 1 du flux atelier. | Contredit la décision « v2 officielle ». | **Résolu** — l'étape 1 pointe vers `scan2.html`, v1 est rangée dans les outils |

@@ -15,6 +15,7 @@
 import {
   buildNavGrid, nearestWalkable, waypoint, distanceField, descend, lineOfSight, cellIndex,
 } from './navigation.js';
+import { createBlockIndex, blocksAround as blocsAutour } from './world-objects.js';
 
 const R_PROCHE        = 2.8;   // regard anticipé du volant (u)
 const R_LOIN          = 7.0;   // regard lointain, pour freiner avant un virage (u)
@@ -43,7 +44,7 @@ export function createBotNav(map, opts = {}) {
   return {
     nav,
     cs:          map.blockScale ?? 2,
-    blocIndex:   new Map(map.blocks.map(b => [`${b.col},${b.row}`, b])),
+    blocIndex:   createBlockIndex(map),
     champSortie: distanceField(nav, [nearestWalkable(nav, e.x, e.z)]),
     champJoueur: null,   // distance au joueur — partagé par tous les bots
     tChamp:      0,      // délai avant le prochain rafraîchissement
@@ -86,16 +87,7 @@ export function refreshPlayerField(bn, joueur, positionsBots, dt) {
  * qui l'entoure LUI, pas avec les blocs chargés autour du joueur.
  */
 export function blocksAround(bn, pos) {
-  const taille = 8 * bn.cs;
-  const c = Math.floor(pos.x / taille), r = Math.floor(pos.z / taille);
-  const blocs = [];
-  for (let dr = -1; dr <= 1; dr++) {
-    for (let dc = -1; dc <= 1; dc++) {
-      const b = bn.blocIndex.get(`${c + dc},${r + dr}`);
-      if (b) blocs.push(b);
-    }
-  }
-  return blocs;
+  return blocsAutour(bn.blocIndex, pos);
 }
 
 /**

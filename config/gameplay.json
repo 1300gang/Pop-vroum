@@ -195,6 +195,11 @@
       "opacity": 0.22
     }
   },
+  "network": {
+    "interpDelayMs":   100,
+    "correctionRate":  6.0,
+    "snapDistance":    3.0
+  },
   "solo": {
     "WIN_RADIUS": 4.0,
     "SPAWN_SPREAD": 1.5

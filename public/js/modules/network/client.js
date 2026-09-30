@@ -90,11 +90,13 @@ export function sendReady(ready = true) {
 
 /**
  * Envoie les inputs de pilotage.
- * @param {{ steering: number, braking: number }} inputs
+ * La marche arrière n'était pas transmise : le bouton « Reculer » ne faisait
+ * rien en multijoueur.
+ * @param {{ steering: number, braking: number, reversing: number }} inputs
  */
-export function sendInput({ steering = 0, braking = 0 } = {}) {
+export function sendInput({ steering = 0, braking = 0, reversing = 0 } = {}) {
   if (!_socket?.connected) return; // silencieux si déco (input continu)
-  _socket.emit('game:input', { steering, braking });
+  _socket.emit('game:input', { steering, braking, reversing });
 }
 
 // ---- Réception (serveur → client) ----

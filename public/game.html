@@ -5,6 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <title>Pop Vroum — Partie</title>
   <style>
+    /* Page de jeu d'atelier : le moins d'interface possible. Tout ce qui est
+       réglage, mesure ou debug vit dans test-v5.html, jamais ici. */
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     html, body {
@@ -24,868 +26,205 @@
       touch-action: none;
     }
 
-    /* ---- HUD gauche (infos véhicule) ---- */
-    #hud-gauche {
+    /* ---- Jauge de cohésion (haut, centre) ---- */
+    #hud-cohesion {
       position: fixed;
       top: 12px;
-      left: 12px;
-      background: rgba(0, 0, 0, 0.6);
-      backdrop-filter: blur(4px);
-      border-radius: 10px;
-      padding: 12px 16px;
-      min-width: 180px;
-      max-width: 240px;
-      pointer-events: none;
-      z-index: 10;
-      line-height: 1.5;
-      font-size: 13px;
-    }
-
-    #nom-vehicule {
-      font-size: 15px;
-      font-weight: 700;
-      color: #ffd166;
-      margin-bottom: 8px;
-    }
-
-    #couleurs {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 4px;
-      margin-bottom: 8px;
-    }
-
-    .pill {
-      display: inline-block;
-      padding: 2px 8px;
-      border-radius: 99px;
-      font-size: 11px;
-      font-weight: 600;
-      color: #fff;
-      text-shadow: 0 1px 2px rgba(0,0,0,0.5);
-    }
-
-    .stat-ligne {
-      display: flex;
-      justify-content: space-between;
-      gap: 8px;
-      opacity: 0.9;
-    }
-
-    .stat-val { color: #a8e6cf; font-weight: 600; }
-
-    .sep { border: none; border-top: 1px solid rgba(255,255,255,0.12); margin: 6px 0; }
-
-    .pouvoir-ligne {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      font-size: 12px;
-      line-height: 1.6;
-    }
-
-    .pouvoir-dot {
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      flex-shrink: 0;
-    }
-
-    .pouvoir-barre-wrap {
-      flex: 1;
-      height: 4px;
-      background: rgba(255,255,255,0.1);
-      border-radius: 2px;
-      overflow: hidden;
-    }
-
-    .pouvoir-barre {
-      height: 100%;
-      border-radius: 2px;
-      transition: width 0.3s;
-    }
-
-    /* ---- HUD droit (preview + tous les panneaux debug en flex column) ---- */
-    #hud-droite {
-      position: fixed;
-      top: 12px;
-      right: 12px;
-      bottom: 12px;
-      display: flex;
-      flex-direction: column;
-      align-items: stretch;
-      gap: 6px;
-      z-index: 10;
-      width: 230px;
-      overflow-y: auto;
-      scrollbar-width: thin;
-      pointer-events: none;
-    }
-    #hud-droite > * { pointer-events: auto; }
-
-    #preview-wrap {
-      background: rgba(0, 0, 0, 0.6);
-      backdrop-filter: blur(4px);
-      border-radius: 10px;
-      padding: 6px;
-      border: 1px solid rgba(255, 255, 255, 0.08);
-    }
-
-    #preview {
-      display: block;
-      border-radius: 6px;
-    }
-
-    /* ---- HUD bas (vitesse + contrôles) ---- */
-    #hud-bas {
-      position: fixed;
-      bottom: 12px;
       left: 50%;
       transform: translateX(-50%);
       display: flex;
       align-items: center;
-      gap: 16px;
-      background: rgba(0, 0, 0, 0.55);
-      backdrop-filter: blur(4px);
-      border-radius: 8px;
-      padding: 7px 16px;
+      gap: 10px;
+      padding: 6px 14px;
+      background: rgba(0, 0, 0, 0.45);
+      border-radius: 20px;
       font-size: 13px;
       pointer-events: none;
-      z-index: 10;
     }
+    #cohesion-wrap {
+      width: 160px;
+      height: 10px;
+      background: rgba(255, 255, 255, 0.15);
+      border-radius: 5px;
+      overflow: hidden;
+    }
+    #cohesion-bar {
+      height: 100%;
+      width: 0%;
+      background: #ff6b6b;
+      border-radius: 5px;
+      transition: width 0.2s, background 0.3s;
+    }
+    #cohesion-bar.pleine { background: #66ff99; }
 
-    #drift-label {
-      color: #ff6b6b;
-      font-weight: 700;
-      animation: clignoter 0.4s step-start infinite;
+    /* ---- Annonces (attente, décompte, « Partez ! ») ---- */
+    #annonce {
+      position: fixed;
+      top: 38%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font-size: 64px;
+      font-weight: 800;
+      text-align: center;
+      text-shadow: 0 4px 18px rgba(0, 0, 0, 0.6);
+      pointer-events: none;
+      display: none;
+    }
+    #annonce.petite { font-size: 26px; font-weight: 600; }
+
+    /* ---- Bandeau « tu es arrivé·e » ---- */
+    #bandeau-arrivee {
+      position: fixed;
+      top: 52px;
+      left: 50%;
+      transform: translateX(-50%);
+      padding: 8px 18px;
+      background: rgba(255, 209, 102, 0.95);
+      color: #222;
+      border-radius: 20px;
+      font-size: 15px;
+      font-weight: 600;
+      pointer-events: none;
       display: none;
     }
 
-    @keyframes clignoter {
-      50% { opacity: 0; }
-    }
-
-    .controles-hint {
-      opacity: 0.55;
-      font-size: 12px;
-    }
-
-    /* ---- Boutons de contrôle tactile ---- */
+    /* ---- Frein / Reculer (tactile) ---- */
     #ctrl-boutons {
       position: fixed;
-      bottom: 56px;
+      bottom: 18px;
       left: 50%;
       transform: translateX(-50%);
       display: flex;
-      gap: 10px;
-      z-index: 12;
-      pointer-events: all;
+      gap: 14px;
     }
-
     .ctrl-btn {
       background: rgba(255, 255, 255, 0.12);
       border: 2px solid rgba(255, 255, 255, 0.3);
-      border-radius: 10px;
+      border-radius: 12px;
       color: #fff;
-      font-size: 15px;
+      font-size: 17px;
       font-family: inherit;
       font-weight: 600;
-      padding: 10px 22px;
+      padding: 12px 26px;
       cursor: pointer;
       user-select: none;
       -webkit-user-select: none;
       touch-action: none;
-      transition: background 0.1s;
     }
-
     .ctrl-btn:active,
     .ctrl-btn.actif {
       background: rgba(255, 255, 255, 0.32);
       border-color: rgba(255, 255, 255, 0.7);
     }
 
-    /* ---- Stack haut-centre (cohésion + overlay debug) ---- */
-    #top-center {
-      position: fixed;
-      top: 12px;
-      left: 50%;
-      transform: translateX(-50%);
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 6px;
-      z-index: 10;
-      pointer-events: none;
-    }
-    #top-center > * { pointer-events: auto; }
-
-    /* ---- HUD cohésion (dans top-center) ---- */
-    #hud-cohesion {
-      background: rgba(0, 0, 0, 0.6);
-      backdrop-filter: blur(4px);
-      border-radius: 8px;
-      padding: 8px 18px;
-      z-index: 10;
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      font-size: 13px;
-    }
-
-    #cohesion-label { opacity: 0.7; }
-
-    #cohesion-bar-wrap {
-      width: 120px;
-      height: 6px;
-      background: rgba(255,255,255,0.15);
-      border-radius: 3px;
-      overflow: hidden;
-    }
-
-    #cohesion-bar {
-      height: 100%;
-      background: #ffd166;
-      border-radius: 3px;
-      transition: width 0.25s, background 0.3s;
-    }
-
-    #cohesion-bar.pleine { background: #2ecc71; }
-
-    #cohesion-val {
-      min-width: 36px;
-      text-align: right;
-      font-weight: 600;
-      font-size: 12px;
-    }
-
-    /* ---- Bandeau arrivée (joueur individuel) ---- */
-    #banner {
-      position: fixed;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      background: rgba(255, 209, 102, 0.96);
-      color: #222;
-      padding: 22px 44px;
-      border-radius: 14px;
-      font-size: 28px;
-      font-weight: 700;
-      display: none;
-      z-index: 20;
-      text-align: center;
-      animation: pop-in 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
-    }
-
-    /* ---- Écran de victoire ---- */
-    #ecran-victoire {
-      position: fixed;
-      inset: 0;
-      background: rgba(0, 0, 0, 0.85);
-      display: none;
-      align-items: center;
-      justify-content: center;
-      z-index: 40;
-      animation: fade-in 0.4s ease;
-    }
-
-    #ecran-victoire.visible { display: flex; }
-
-    #victoire-corps {
-      background: linear-gradient(135deg, #1a1a2e, #16213e);
-      border: 1px solid rgba(255, 209, 102, 0.4);
-      border-radius: 20px;
-      padding: 36px 48px;
-      text-align: center;
-      max-width: 420px;
-      width: 90%;
-    }
-
-    #victoire-titre {
-      font-size: 36px;
-      font-weight: 800;
-      color: #ffd166;
-      margin-bottom: 8px;
-    }
-
-    #victoire-sous-titre {
-      font-size: 14px;
-      opacity: 0.55;
-      margin-bottom: 28px;
-    }
-
-    #victoire-podium {
-      list-style: none;
-      margin-bottom: 28px;
-    }
-
-    #victoire-podium li {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      padding: 8px 0;
-      border-bottom: 1px solid rgba(255,255,255,0.07);
-      font-size: 15px;
-    }
-
-    #victoire-podium li:last-child { border-bottom: none; }
-
-    .rang-icone {
-      font-size: 20px;
-      min-width: 28px;
-      text-align: center;
-    }
-
-    #btn-retour-accueil {
-      background: #ffd166;
-      color: #1a1a2e;
-      border: none;
-      border-radius: 10px;
-      padding: 12px 28px;
-      font-size: 15px;
-      font-weight: 700;
-      cursor: pointer;
-      transition: opacity 0.15s;
-    }
-
-    #btn-retour-accueil:hover { opacity: 0.85; }
-
-    @keyframes pop-in {
-      from { transform: translate(-50%, -50%) scale(0.7); opacity: 0; }
-      to   { transform: translate(-50%, -50%) scale(1);   opacity: 1; }
-    }
-
-    @keyframes fade-in {
-      from { opacity: 0; }
-      to   { opacity: 1; }
-    }
-
-    /* ---- Overlay chargement ---- */
-    #loading {
-      position: fixed;
-      inset: 0;
-      background: #1a1a2e;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      gap: 16px;
-      z-index: 100;
-      font-size: 16px;
-      color: rgba(255, 255, 255, 0.7);
-    }
-
-    #loading-bar-wrap {
-      width: 240px;
-      height: 6px;
-      background: rgba(255,255,255,0.15);
-      border-radius: 3px;
-      overflow: hidden;
-    }
-
-    #loading-bar {
-      height: 100%;
-      width: 0%;
-      background: #667eea;
-      border-radius: 3px;
-      transition: width 0.3s;
-    }
-
-    /* ---- Bouton quitter (haut-gauche pour libérer la colonne droite) ---- */
+    /* ---- Quitter (discret, pour l'animateur·trice) ---- */
     #btn-quitter {
       position: fixed;
-      bottom: 12px;
+      top: 12px;
       left: 12px;
-      z-index: 30;
-      background: rgba(0, 0, 0, 0.55);
-      backdrop-filter: blur(4px);
-      border: 1px solid rgba(255, 255, 255, 0.12);
-      color: rgba(255, 255, 255, 0.6);
+      background: rgba(0, 0, 0, 0.35);
+      border: 1px solid rgba(255, 255, 255, 0.2);
       border-radius: 8px;
-      padding: 6px 12px;
+      color: rgba(255, 255, 255, 0.7);
       font-size: 13px;
+      padding: 6px 10px;
       cursor: pointer;
-      transition: background .15s, color .15s;
     }
 
-    #btn-quitter:hover {
-      background: rgba(200, 50, 50, 0.7);
-      color: #fff;
-    }
-
-    /* ---- Modale de confirmation ---- */
-    #modale-quitter {
+    /* ---- Fenêtres (quitter, victoire, chargement) ---- */
+    .voile {
       position: fixed;
       inset: 0;
-      background: rgba(0, 0, 0, 0.75);
       display: none;
       align-items: center;
       justify-content: center;
-      z-index: 50;
+      background: rgba(10, 10, 25, 0.72);
+      z-index: 10;
     }
-
-    #modale-quitter.visible {
-      display: flex;
-    }
-
-    #modale-quitter .modale-corps {
-      background: #1a1a2e;
-      border: 1px solid rgba(255, 255, 255, 0.12);
-      border-radius: 14px;
-      padding: 28px 32px;
-      max-width: 360px;
-      width: 90%;
-      text-align: center;
-    }
-
-    #modale-quitter h2 {
-      font-size: 18px;
-      margin-bottom: 10px;
-    }
-
-    #modale-quitter p {
-      font-size: 13px;
-      opacity: 0.6;
-      margin-bottom: 22px;
-      line-height: 1.5;
-    }
-
-    #modale-quitter .modale-actions {
-      display: flex;
-      gap: 10px;
-      justify-content: center;
-    }
-
-    #btn-confirmer-quitter {
-      background: #e74c3c;
-      color: #fff;
-      border: none;
-      border-radius: 8px;
-      padding: 9px 22px;
-      font-size: 14px;
-      font-weight: 700;
-      cursor: pointer;
-    }
-
-    #btn-confirmer-quitter:hover { opacity: .85; }
-
-    #btn-annuler-quitter {
-      background: rgba(255, 255, 255, 0.08);
-      color: #fff;
+    .voile.visible { display: flex; }
+    .fenetre {
+      background: #25253d;
       border: 1px solid rgba(255, 255, 255, 0.15);
-      border-radius: 8px;
-      padding: 9px 22px;
-      font-size: 14px;
-      cursor: pointer;
+      border-radius: 16px;
+      padding: 28px 32px;
+      text-align: center;
+      max-width: 90vw;
     }
-
-    #btn-annuler-quitter:hover { background: rgba(255, 255, 255, 0.14); }
-
-    /* ==== DEBUG / CALIBRATION (port test-solo-v3) ==== */
-
-    /* Boutons debug dans hud-droite */
-    .btn {
-      background: #667eea;
-      color: #fff;
+    .fenetre h1 { font-size: 34px; margin-bottom: 8px; }
+    .fenetre p  { font-size: 16px; opacity: 0.85; margin-bottom: 20px; }
+    .fenetre .actions { display: flex; gap: 12px; justify-content: center; }
+    .gros-btn {
+      background: #5b6cff;
       border: none;
-      padding: 8px 14px;
-      border-radius: 8px;
-      cursor: pointer;
-      font-weight: 600;
-      font-size: 13px;
-      transition: background 0.15s;
-    }
-    .btn:hover  { background: #5568d3; }
-    .btn:active { background: #4455c0; }
-    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
-
-    /* Panel debug physique (empilé dans hud-droite) */
-    #debug-phys {
-      background: rgba(0, 0, 0, 0.78);
-      backdrop-filter: blur(6px);
-      border: 1px solid rgba(68, 136, 255, 0.3);
-      border-radius: 10px;
-      padding: 10px 14px;
-      font-size: 12px;
-      line-height: 1.65;
-      display: none;
-    }
-    #debug-phys.visible { display: block; }
-
-    #debug-phys-titre {
-      font-size: 13px;
-      font-weight: 700;
-      color: #4488ff;
-      margin-bottom: 6px;
-      letter-spacing: 0.02em;
-    }
-
-    .debug-ligne { display: flex; justify-content: space-between; gap: 6px; }
-    .debug-lbl { opacity: 0.55; }
-    .debug-val { color: #a8e6cf; font-variant-numeric: tabular-nums; }
-
-    #debug-phys input[type="range"] {
-      width: 100%;
-      accent-color: #ff6b6b;
-      cursor: pointer;
-      margin-top: 2px;
-    }
-
-    /* Overlay d'équilibrage (dans top-center, sous la cohésion) */
-    #overlay-debug {
-      background: rgba(0, 0, 0, 0.82);
-      backdrop-filter: blur(6px);
-      border: 1px solid rgba(255, 220, 50, 0.35);
-      border-radius: 10px;
-      padding: 10px 18px;
-      font-size: 12px;
-      line-height: 1.7;
-      display: none;
-      white-space: nowrap;
-    }
-
-    #overlay-debug-titre {
-      font-size: 12px;
-      font-weight: 700;
-      color: #ffd166;
-      margin-bottom: 4px;
-      letter-spacing: 0.04em;
-      text-align: center;
-    }
-
-    .ov-ligne { display: flex; justify-content: space-between; gap: 20px; }
-    .ov-lbl { opacity: 0.5; }
-    .ov-val { color: #a8e6cf; font-variant-numeric: tabular-nums; font-weight: 600; }
-    .ov-val.alerte { color: #ff6b6b; }
-
-    /* Panel calibration gauche */
-    #panel-calibration {
-      position: fixed;
-      top: 0;
-      left: 0;
-      bottom: 0;
-      width: 258px;
-      background: rgba(0, 0, 0, 0.88);
-      backdrop-filter: blur(8px);
-      border-right: 1px solid rgba(255, 255, 255, 0.1);
-      padding: 52px 14px 16px;
-      overflow-y: auto;
-      z-index: 20;
-      display: none;
-      font-size: 12px;
-      scrollbar-width: thin;
-    }
-    #panel-calibration.visible { display: block; }
-
-    .cal-titre {
-      font-size: 14px;
-      font-weight: 700;
-      color: #ffd166;
-      margin-bottom: 14px;
-      letter-spacing: 0.04em;
-    }
-
-    .cal-section {
-      font-size: 10px;
-      font-weight: 700;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-      color: rgba(255, 255, 255, 0.35);
-      margin: 12px 0 5px;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-      padding-bottom: 3px;
-    }
-
-    .cal-row {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 1px;
-      gap: 8px;
-    }
-
-    .cal-lbl { opacity: 0.75; white-space: nowrap; }
-    .cal-val { color: #a8e6cf; font-weight: 600; min-width: 42px; text-align: right; }
-
-    #panel-calibration input[type="range"] {
-      width: 100%;
-      accent-color: #667eea;
-      cursor: pointer;
-      margin-bottom: 6px;
-    }
-
-    .cal-note {
-      font-size: 10px;
-      opacity: 0.45;
-      font-style: italic;
-      line-height: 1.45;
-      margin-top: 8px;
-    }
-
-    #profils-btn { display: flex; flex-direction: column; gap: 5px; margin-top: 6px; }
-    .profil-btn {
-      background: rgba(255, 255, 255, 0.07);
-      border: 1px solid rgba(255, 255, 255, 0.13);
-      border-radius: 6px;
+      border-radius: 12px;
       color: #fff;
-      padding: 6px 10px;
-      font-size: 12px;
-      cursor: pointer;
-      text-align: left;
-      font-family: inherit;
-      transition: background 0.1s;
-    }
-    .profil-btn:hover { background: rgba(100, 130, 255, 0.22); }
-    .profil-btn.actif { background: rgba(100, 130, 255, 0.38); border-color: #667eea; }
-
-    /* Panel charts (empilé dans hud-droite) */
-    #panel-charts {
-      background: rgba(0, 0, 0, 0.82);
-      backdrop-filter: blur(6px);
-      border: 1px solid rgba(68, 136, 255, 0.22);
-      border-radius: 10px;
-      padding: 10px 12px;
-      display: none;
-    }
-    #panel-charts.visible { display: block; }
-    #panel-charts canvas.chart-c { width: 100%; height: auto; }
-
-    .chart-lbl {
-      font-size: 10px;
-      opacity: 0.45;
-      letter-spacing: 0.04em;
-      margin-bottom: 3px;
-    }
-    .chart-c {
-      display: block;
-      border-radius: 3px;
-      background: rgba(255, 255, 255, 0.04);
-      margin-bottom: 8px;
-    }
-
-    /* Panel résultats session */
-    #panel-session {
-      position: fixed;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      background: rgba(10, 10, 30, 0.95);
-      border: 1px solid rgba(255, 255, 255, 0.14);
-      border-radius: 14px;
-      padding: 22px 30px;
-      min-width: 240px;
-      display: none;
-      z-index: 25;
-      text-align: center;
-    }
-    #panel-session.visible { display: block; }
-
-    .sess-titre {
-      font-size: 15px;
+      font-size: 18px;
       font-weight: 700;
-      color: #ffd166;
-      margin-bottom: 12px;
+      padding: 12px 28px;
+      cursor: pointer;
     }
-    .sess-stat {
-      display: flex;
-      justify-content: space-between;
-      gap: 20px;
-      font-size: 13px;
-      line-height: 1.9;
+    .gros-btn.secondaire { background: rgba(255, 255, 255, 0.14); }
+    .gros-btn:disabled { opacity: 0.5; cursor: default; }
+    #votes { margin-top: 12px; font-size: 14px; opacity: 0.75; min-height: 1em; }
+
+    #loading-bar-wrap {
+      width: 220px;
+      height: 6px;
+      margin: 14px auto 8px;
+      background: rgba(255, 255, 255, 0.15);
+      border-radius: 3px;
+      overflow: hidden;
     }
-    .sess-val { color: #a8e6cf; font-weight: 600; }
+    #loading-bar { height: 100%; width: 0%; background: #5b6cff; transition: width 0.2s; }
+    #loading-msg { font-size: 13px; opacity: 0.75; }
   </style>
 </head>
 <body>
-
-  <!-- Canvas principal -->
   <canvas id="jeu"></canvas>
 
-  <!-- Bouton quitter -->
+  <div id="hud-cohesion">
+    <span>Ensemble</span>
+    <div id="cohesion-wrap"><div id="cohesion-bar"></div></div>
+  </div>
+
+  <div id="annonce"></div>
+  <div id="bandeau-arrivee">Tu es arrivé·e ! On attend les autres…</div>
+
+  <div id="ctrl-boutons">
+    <button class="ctrl-btn" id="btn-ctrl-frein">Frein</button>
+    <button class="ctrl-btn" id="btn-ctrl-reculer">Reculer</button>
+  </div>
+
   <button id="btn-quitter">× Quitter</button>
 
-  <!-- Modale de confirmation -->
-  <div id="modale-quitter">
-    <div class="modale-corps">
-      <h2>Quitter la partie ?</h2>
-      <p>La partie continue pour les autres joueurs. Vous serez redirigé vers l'accueil.</p>
-      <div class="modale-actions">
-        <button id="btn-confirmer-quitter">Quitter</button>
-        <button id="btn-annuler-quitter">Annuler</button>
+  <div class="voile" id="modale-quitter">
+    <div class="fenetre">
+      <h1>Quitter la partie ?</h1>
+      <p>Les autres continueront sans toi.</p>
+      <div class="actions">
+        <button class="gros-btn secondaire" id="btn-annuler-quitter">Rester</button>
+        <button class="gros-btn" id="btn-confirmer-quitter">Quitter</button>
       </div>
     </div>
   </div>
 
-  <!-- HUD gauche — infos véhicule -->
-  <div id="hud-gauche">
-    <div id="nom-vehicule">…</div>
-    <div id="couleurs"></div>
-    <hr class="sep">
-    <div class="stat-ligne">
-      <span>Vitesse max</span>
-      <span class="stat-val" id="stat-speed">–</span>
-    </div>
-    <div class="stat-ligne">
-      <span>Adhérence</span>
-      <span class="stat-val" id="stat-grip">–</span>
-    </div>
-    <div class="stat-ligne">
-      <span>Accélération</span>
-      <span class="stat-val" id="stat-accel">–</span>
-    </div>
-    <hr class="sep">
-    <div id="pouvoirs"></div>
-    <hr class="sep">
-    <div class="stat-ligne" style="opacity:0.6; font-size:11px;">
-      <span id="joueurs-info">Joueurs : …</span>
-    </div>
-  </div>
-
-  <!-- HUD droit — preview 3D + boutons debug + panneaux empilés -->
-  <div id="hud-droite">
-    <div id="preview-wrap" style="align-self:flex-end">
-      <canvas id="preview" width="190" height="140"></canvas>
-    </div>
-    <button class="btn" id="btn-auto-boucle">Auto [A]</button>
-    <button class="btn" id="btn-calibration">Calibration [C]</button>
-    <button class="btn" id="btn-debug-toggle">Debug [D]</button>
-    <button class="btn" id="btn-debug-phys-toggle">Phys [P]</button>
-
-    <!-- Panel debug physique -->
-    <div id="debug-phys">
-      <div id="debug-phys-titre">Physique (lecture serveur)</div>
-      <div class="debug-ligne"><span class="debug-lbl">Velocity</span><span class="debug-val">(<span id="dbg-vx">0.00</span>, <span id="dbg-vz">0.00</span>)</span></div>
-      <div class="debug-ligne"><span class="debug-lbl">|v| m/s</span><span class="debug-val" id="dbg-speed">0.00</span></div>
-      <div class="debug-ligne"><span class="debug-lbl">v_forward</span><span class="debug-val" id="dbg-vfwd">0.00</span></div>
-      <div class="debug-ligne"><span class="debug-lbl">v_lateral</span><span class="debug-val" id="dbg-vlat">0.00</span></div>
-      <div class="debug-ligne"><span class="debug-lbl">Angle</span><span class="debug-val" id="dbg-angle">0.0°</span></div>
-      <div class="debug-ligne"><span class="debug-lbl">Élévation</span><span class="debug-val" id="dbg-elev">0.00</span></div>
-      <div class="debug-ligne"><span class="debug-lbl">Dérapage</span><span id="dbg-drift" style="font-weight:700;color:#44ff99">NON</span></div>
-      <hr class="sep" style="margin:6px 0">
-      <div style="opacity:0.7;font-size:11px;margin-bottom:2px">
-        Adhérence grip_stat : <b id="grip-val">0.50</b>
+  <div class="voile" id="ecran-victoire">
+    <div class="fenetre">
+      <h1>Vous êtes tous arrivés !</h1>
+      <p>Bravo à toute l'équipe.</p>
+      <div class="actions">
+        <button class="gros-btn" id="btn-rejouer">Rejouer</button>
       </div>
-      <div style="opacity:0.45;font-size:10px;margin-bottom:3px">
-        (lecture seule en multijoueur)
-      </div>
-      <input type="range" id="slider-grip" min="0.05" max="2.0" step="0.05" value="0.5" disabled>
-      <div style="margin-top:6px;font-size:10px;opacity:0.45;line-height:1.5">
-        flèche bleue = velocity · flèche orange = angle
-      </div>
-    </div>
-
-    <!-- Panel graphiques -->
-    <div id="panel-charts">
-      <div class="chart-lbl">VITESSE (m/s)</div>
-      <canvas class="chart-c" id="chart-speed" width="200" height="70"></canvas>
-      <div class="chart-lbl">V_LATERAL (dérapage)</div>
-      <canvas class="chart-c" id="chart-vlat" width="200" height="70"></canvas>
-      <div class="chart-lbl">COHÉSION</div>
-      <canvas class="chart-c" id="chart-vie" width="200" height="16"></canvas>
+      <div id="votes"></div>
     </div>
   </div>
 
-  <!-- Stack haut-centre : cohésion + overlay debug -->
-  <div id="top-center">
-    <!-- Overlay d'équilibrage (caché par défaut, sous la cohésion) -->
-    <div id="overlay-debug">
-    <div id="overlay-debug-titre">EQUILIBRAGE</div>
-    <div class="ov-ligne"><span class="ov-lbl">Vitesse</span><span class="ov-val" id="ov-speed">0.00 u/s</span></div>
-    <div class="ov-ligne"><span class="ov-lbl">v_lateral</span><span class="ov-val" id="ov-vlat">0.00 u/s</span></div>
-    <div class="ov-ligne"><span class="ov-lbl">Dérapage</span><span class="ov-val" id="ov-drift">NON</span></div>
-    <div class="ov-ligne"><span class="ov-lbl">Voxels</span><span class="ov-val" id="ov-voxels">– / –</span></div>
-    <div class="ov-ligne"><span class="ov-lbl">Chocs</span><span class="ov-val" id="ov-chocs">0 (Δv: –)</span></div>
-    <div class="ov-ligne"><span class="ov-lbl">FPS</span><span class="ov-val" id="ov-fps">–</span></div>
-    <div class="ov-ligne"><span class="ov-lbl">Blocs visibles</span><span class="ov-val" id="ov-blocs">–</span></div>
-    <div class="ov-ligne"><span class="ov-lbl">Position</span><span class="ov-val" id="ov-pos">(0, 0)</span></div>
-    <div class="ov-ligne"><span class="ov-lbl">Ping</span><span class="ov-val" id="ov-ping">– ms</span></div>
+  <div class="voile visible" id="loading">
+    <div class="fenetre">
+      <div>Connexion à la partie…</div>
+      <div id="loading-bar-wrap"><div id="loading-bar"></div></div>
+      <div id="loading-msg"></div>
     </div>
-
-    <!-- HUD cohésion -->
-    <div id="hud-cohesion">
-      <span id="cohesion-label">Cohésion</span>
-      <div id="cohesion-bar-wrap">
-        <div id="cohesion-bar" style="width:0%"></div>
-      </div>
-      <span id="cohesion-val">0 %</span>
-    </div>
-  </div>
-
-  <!-- Panel calibration (gauche) -->
-  <div id="panel-calibration">
-    <div class="cal-titre">Calibration (affichage)</div>
-    <div class="cal-note">
-      En multijoueur la physique tourne sur le serveur — ces curseurs ne
-      modifient que l'affichage local et les seuils visuels.
-    </div>
-
-    <div class="cal-section">Véhicule (référence)</div>
-    <div class="cal-row"><span class="cal-lbl">Blocs initiaux</span><span class="cal-val" id="val-blocs">–</span></div>
-    <div class="cal-row"><span class="cal-lbl">Poids estimé</span><span class="cal-val" id="val-poids">– kg</span></div>
-
-    <div class="cal-section">Affichage physique</div>
-    <div class="cal-row"><span class="cal-lbl">Speed</span><span class="cal-val" id="val-speed">0.50</span></div>
-    <input type="range" id="sl-speed" min="0.1" max="1.0" step="0.05" value="0.5">
-    <div class="cal-row"><span class="cal-lbl">Grip</span><span class="cal-val" id="val-grip-cal">0.50</span></div>
-    <input type="range" id="sl-grip-cal" min="0.1" max="1.0" step="0.05" value="0.5">
-    <div class="cal-row"><span class="cal-lbl">Accel</span><span class="cal-val" id="val-accel">0.50</span></div>
-    <input type="range" id="sl-accel" min="0.1" max="1.0" step="0.05" value="0.5">
-
-    <div class="cal-section">Seuils d'affichage</div>
-    <div class="cal-row"><span class="cal-lbl">Seuil choc Δv</span><span class="cal-val" id="val-choc">3.0</span></div>
-    <input type="range" id="sl-choc" min="0.5" max="10" step="0.5" value="3.0">
-
-    <div class="cal-section">Profils</div>
-    <div id="profils-btn">
-      <button class="profil-btn" data-profil="equilibre">Équilibré &nbsp; s=0.5 g=0.5 a=0.5</button>
-      <button class="profil-btn" data-profil="drift">Drift machine &nbsp; s=0.7 g=0.2 a=0.6</button>
-      <button class="profil-btn" data-profil="tank">Tank &nbsp; s=0.3 g=0.8 a=0.3</button>
-      <button class="profil-btn" data-profil="fusee">Fusée &nbsp; s=1.0 g=0.4 a=1.0</button>
-      <button class="profil-btn" data-profil="savonnette">Savonnette &nbsp; s=0.5 g=0.1 a=0.5</button>
-    </div>
-  </div>
-
-  <!-- Panel résultats de session (arrivée locale) -->
-  <div id="panel-session">
-    <div class="sess-titre">Résultats du tour</div>
-    <div class="sess-stat"><span>Temps</span><span class="sess-val" id="sess-temps">–</span></div>
-    <div class="sess-stat"><span>Vitesse max</span><span class="sess-val" id="sess-vitmax">–</span></div>
-    <div class="sess-stat"><span>Vitesse moy.</span><span class="sess-val" id="sess-vitmoy">–</span></div>
-    <div class="sess-stat"><span>Chocs</span><span class="sess-val" id="sess-voxels">–</span></div>
-  </div>
-
-  <!-- Boutons de contrôle tactile -->
-  <div id="ctrl-boutons">
-    <button class="ctrl-btn" id="btn-ctrl-frein">⬛ Frein</button>
-    <button class="ctrl-btn" id="btn-ctrl-reculer">◀ Reculer</button>
-  </div>
-
-  <!-- HUD bas — vitesse + drift + contrôles -->
-  <div id="hud-bas">
-    <span>⚡ <b id="speed-val">0.0</b> u/s</span>
-    <span id="drift-label">DÉRAPAGE</span>
-    <span class="controles-hint">← → ↓ frein &nbsp;|&nbsp; R reculer &nbsp;|&nbsp; ou toucher les bords / boutons</span>
-  </div>
-
-  <!-- Bandeau arrivée individuelle -->
-  <div id="banner">🏁 Arrivée !</div>
-
-  <!-- Écran de victoire collective -->
-  <div id="ecran-victoire">
-    <div id="victoire-corps">
-      <div id="victoire-titre">🏆 Victoire !</div>
-      <div id="victoire-sous-titre">Toute l'équipe est arrivée !</div>
-      <ol id="victoire-podium"></ol>
-      <button id="btn-retour-accueil">Retour à l'accueil</button>
-    </div>
-  </div>
-
-  <!-- Overlay chargement -->
-  <div id="loading">
-    <div>Connexion à la partie…</div>
-    <div id="loading-bar-wrap">
-      <div id="loading-bar"></div>
-    </div>
-    <div id="loading-msg" style="font-size:13px;"></div>
   </div>
 
   <script type="module" src="js/pages/game-page.js"></script>

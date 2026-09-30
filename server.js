@@ -142,6 +142,25 @@ io.on('connection', (socket) => {
   });
 
   // ------------------------------------------------------------------
+  // game:rejouer — après la victoire collective, chacun demande à rejouer ;
+  // quand tout le monde a cliqué, un nouveau match part (nouvelle map)
+  // ------------------------------------------------------------------
+  socket.on('game:rejouer', () => {
+    const matchId = socketToMatch.get(socket.id);
+    if (!matchId) return;
+    const res = GameLoop.voteRejouer(matchId, socket.id);
+    if (!res) return;
+    const match = GameLoop.getMatch(matchId);
+    io.to(match.roomId).emit('game:rejouer:votes', { votes: res.votes, total: res.total });
+    if (!res.pret) return;
+
+    const joueurs = GameLoop.getRematchPlayers(matchId);
+    const roomId  = match.roomId;
+    GameLoop.stopMatch(matchId);
+    _demarrerMatch(joueurs, roomId);
+  });
+
+  // ------------------------------------------------------------------
   // game:input
   // ------------------------------------------------------------------
   socket.on('game:input', (inputs) => {
@@ -176,7 +195,12 @@ io.on('connection', (socket) => {
 async function _lancerMatch(lobbyId) {
   const players = LobbyManager.getLobbyPlayers(lobbyId);
   LobbyManager.startLobby(lobbyId);
+  await _demarrerMatch(players, lobbyId);
+}
 
+// Démarre un match et envoie à chaque joueur sa map et son playerId. Sert au
+// lancement depuis le lobby comme à « Rejouer » (mêmes joueurs, nouvelle map).
+async function _demarrerMatch(players, lobbyId) {
   const matchId = `match_${Date.now()}_${randomBytes(3).toString('hex')}`;
 
   try {

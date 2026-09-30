@@ -12,6 +12,8 @@
 //   startMatch(matchId, players, io, roomId) → Promise<{map, playerInfos}>
 //   rejoinPlayer(matchId, playerId, newSocketId, socket) → boolean
 //   getSnapshot(matchId)                      → état courant (pour un rejoin)
+//   voteRejouer(matchId, socketId)            → { votes, total, pret } après la victoire
+//   getRematchPlayers(matchId)                → joueurs à relancer dans un nouveau match
 //   applyInput(matchId, socketId, inputs)     → void
 //   stopMatch(matchId)                        → void
 //   getMatch(matchId)                         → MatchState | null
@@ -311,12 +313,19 @@ export async function startMatch(matchId, players, io, roomId) {
       rejoint:      false,
     });
 
+    // La grille nettoyée remplace celle reçue : tout le monde part de la même.
+    // Copie : la grille du véhicule suivi perd des voxels pendant le match,
+    // celle-ci reste intacte pour « Rejouer ».
+    const vehicleInfo = {
+      ...(p.vehicle ?? {}),
+      grid: vehicule.grid ? vehicule.grid.map(col => col.map(row => [...row])) : null,
+    };
+    playerStates.get(playerId).vehiculeBrut = vehicleInfo;
     playerInfos.push({
       playerId,
       socketId:   p.socketId,
       playerName: p.playerName,
-      // La grille nettoyée remplace celle reçue : tout le monde part de la même
-      vehicle:    { ...(p.vehicle ?? {}), grid: vehicule.grid },
+      vehicle:    vehicleInfo,
     });
   });
 
@@ -473,7 +482,7 @@ function _tickMatch(match) {
     events,
   });
 
-  if (enCourse) MatchEnd.checkVictory(match);
+  if (enCourse && MatchEnd.checkVictory(match)) match.victoire = true;
 }
 
 // attente → decompte → course. On attend que chaque joueur ait rechargé sa page
@@ -637,6 +646,41 @@ export function getSnapshot(matchId) {
     poteauxTombes,
     cubes: match.world.cubes.map(c => ({ id: c.id, x: c.mesh.position.x, z: c.mesh.position.z })),
   };
+}
+
+/**
+ * Vote « Rejouer » d'un joueur après la victoire collective. Le match suivant
+ * part quand tous les joueurs humains encore connectés ont voté.
+ * @returns {{ votes: number, total: number, pret: boolean } | null}
+ */
+export function voteRejouer(matchId, socketId) {
+  const match = matches.get(matchId);
+  if (!match?.victoire) return null;
+  const playerId = match.socketMap.get(socketId);
+  if (!playerId) return null;
+  match.votes ??= new Set();
+  match.votes.add(playerId);
+  const humains = [...match.playerStates.values()].filter(ps => !ps.bot && ps.connected);
+  const votes   = humains.filter(ps => match.votes.has(ps.playerId)).length;
+  return { votes, total: humains.length, pret: humains.length > 0 && votes >= humains.length };
+}
+
+/**
+ * Joueurs humains connectés, au format de startMatch, avec leur véhicule
+ * d'origine (intact) : repartir avec une épave n'aurait pas de sens.
+ * @returns {Array<{ socketId, playerName, vehicle }>}
+ */
+export function getRematchPlayers(matchId) {
+  const match = matches.get(matchId);
+  if (!match) return [];
+  const socketDe = new Map([...match.socketMap].map(([sid, pid]) => [pid, sid]));
+  return [...match.playerStates.values()]
+    .filter(ps => !ps.bot && ps.connected && socketDe.has(ps.playerId))
+    .map(ps => ({
+      socketId:   socketDe.get(ps.playerId),
+      playerName: ps.playerName,
+      vehicle:    ps.vehiculeBrut,
+    }));
 }
 
 /**

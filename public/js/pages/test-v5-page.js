@@ -8,7 +8,11 @@
 // évolue désormais, test-solo-v3 est figée comme référence de l'état précédent.
 
 import * as THREE from '../lib/three.module.js';
-import { buildVehicleGroup, createPreviewScene, applyRoll, applyPitch, kickSquash, applySquash } from '../modules/voxel/renderer.js';
+import { buildVehicleGroup, createPreviewScene } from '../modules/voxel/renderer.js';
+import {
+  createVehicleView, updateVehicleView, rebuildVehicleView, setVehicleScale, disposeVehicleView,
+  viewLanding, viewWallContact,
+} from '../modules/game/vehicle-view.js';
 import { generateRandomVehicle, generatePresetVehicle, PRESETS, COULEUR_HEX, COULEUR_FR } from '../modules/voxel/random-vehicle.js';
 import * as controls    from '../modules/game/controls.js';
 import * as physics     from '../modules/game/physics.js';
@@ -24,9 +28,10 @@ import * as trail       from '../modules/game/trail.js';
 import * as movables    from '../modules/game/movables.js';
 import * as mapLoader   from '../modules/game/map-loader.js';
 import { buildFence, disposeFence } from '../modules/game/fence.js';
-import { checkTerrain, boundsFromExtent, setConfig as setCollisionConfig, POLE_RADIUS_RATIO, CUBE_SIZE_RATIO } from '../modules/game/collision.js';
+import { checkTerrain, boundsFromExtent, setConfig as setCollisionConfig } from '../modules/game/collision.js';
+import { buildBlockMeshes, buildGround } from '../modules/game/map-view.js';
 import { loadPool, generate, BLOCK_SIZE } from '../modules/game/map-generator.js';
-import { resolveImpact } from '../modules/voxel/impact.js';
+import { resolveCollision, rebuildPowerState } from '../modules/game/damage.js';
 import { initMinimap, updateMinimap, disposeMinimap } from '../modules/game/minimap.js';
 import { V4_TEST_BLOCKS, trouverSpawnRampe } from '../modules/game/test-blocks-v4.js';
 import { construirePisteMesure, construirePisteEffets } from '../modules/game/test-track.js';
@@ -73,32 +78,13 @@ const POUVOIR_INFO = {
   shield:     { nom: 'Bouclier',   couleur: '#ff8800' },
 };
 
-const TYPES_CELLULE = {
-  null:        { couleur: 0x3a3a4a, hauteur: 0.0  },
-  dur:         { couleur: 0x4a5060, hauteur: 0.6  },
-  boost:       { couleur: 0x00d4ff, hauteur: 0.05 },
-  sticky:      { couleur: 0x88ff66, hauteur: 0.05 },
-  rampe_bosse: { couleur: 0xe8a020, hauteur: 0.18 },  // RACE-C05
-  // SOLO-04 : nouveaux éléments
-  ramp_n:  { couleur: 0xaaaaff, hauteur: 0.5 },
-  ramp_s:  { couleur: 0xaaaaff, hauteur: 0.5 },
-  ramp_e:  { couleur: 0xaaaaff, hauteur: 0.5 },
-  ramp_o:  { couleur: 0xaaaaff, hauteur: 0.5 },
-  bump:    { couleur: 0xcc8844, hauteur: 0.3 },
-  movable: { couleur: 0xff6644, hauteur: 1.0 },
-  pole:    { couleur: 0xffffff, hauteur: 2.5 },
-};
-
 // Hauteur de plateau (RACE-C01) — miroir de config/layout.json PLATEAU_HEIGHT
 const PLATEAU_HEIGHT      = 0.5;
-const PLATEAU_FLOOR_H     = 0.15;
-const PLATEAU_COULEUR_SOL = 0x444455;
-const TRANSITION_THICK    = 0.06;
 
 // ---- État global ----
 
 let _scene, _renderer, _cam;
-let _vehicleGroup = null;
+let _vue          = null;   // rendu de la voiture du joueur (game/vehicle-view.js)
 let _vehicleData  = null;
 let _carState     = null;
 let _map          = null;
@@ -202,8 +188,6 @@ let _dernierVlat    = 0;
 let _navJoueur      = null;  // grille de navigation pour l'aide couloir
 let _aideActive     = true;  // bascule G, pour comparer avec / sans
 let _dernierVfwd    = 0;   // vitesse avant, pour le tangage de caisse
-let _vfwdPrecedent  = 0;
-let _accelLissee    = 0;
 let _dernierTerrain = null;  // type de surface sous le véhicule (lecture debug V4)
 // Game feel : on met les effets en pause pour ne juger que la conduite (touche E)
 let _effetsActifs      = false;
@@ -328,332 +312,17 @@ const _movableMeshes = new Map();
 
 // ---- Construction des meshes de map ----
 
-// SOLO-04 : rampe directionnelle centrée — montant vers +X par défaut (ramp_e)
-// Prisme triangulaire centré sur l'origine ; rotation Y appliquée par l'appelant.
-function _creerGeomRampCentree(h, cs) {
-  const hx = cs / 2, hz = cs / 2;
-  const geo = new THREE.BufferGeometry();
-  const v = new Float32Array([
-    -hx, 0,  -hz,   -hx, 0,   hz,
-     hx, 0,  -hz,    hx, 0,   hz,
-     hx, h,  -hz,    hx, h,   hz,
-  ]);
-  const idx = [
-    0,2,3, 0,3,1,  // face du bas
-    2,4,5, 2,5,3,  // surface inclinée
-    1,3,5, 1,5,4,  // côté hz
-    0,4,2,         // côté -hz (triangle)
-    0,1,4, 1,5,4,  // côté hz (rectangle)
-    0,1,4, 1,5,4,  // doublon ignoré par THREE mais on garde les tris utiles
-  ];
-  geo.setAttribute('position', new THREE.BufferAttribute(v, 3));
-  geo.setIndex([
-    0,2,3, 0,3,1,
-    2,4,5, 2,5,3,
-    0,4,2,
-    1,3,5, 1,5,4,
-    0,1,4,
-  ]);
-  geo.computeVertexNormals();
-  return geo;
-}
-
-function _creerGeomRampX(h, cs) {
-  const geo = new THREE.BufferGeometry();
-  const v = new Float32Array([
-    0, 0, 0,    cs, 0, cs,   cs, 0, 0,
-    0, 0, 0,    0,  0, cs,   cs, 0, cs,
-    cs, 0, 0,   cs, 0, cs,   cs, h, cs,
-    cs, 0, 0,   cs, h, cs,   cs, h, 0,
-    0, 0, 0,    cs, h, 0,    cs, h, cs,
-    0, 0, 0,    cs, h, cs,   0,  0, cs,
-    0, 0, 0,    cs, 0, 0,    cs, h, 0,
-    0, 0, cs,   cs, h, cs,   cs, 0, cs,
-  ]);
-  geo.setAttribute('position', new THREE.BufferAttribute(v, 3));
-  geo.computeVertexNormals();
-  return geo;
-}
-
+// Meshes de map : game/map-view.js. Les cubes et poteaux sont rangés ici.
 function _construireMeshColonne(blocks, blockScale) {
-  const group = new THREE.Group();
-  const cs = blockScale;
-
-  for (const bloc of blocks) {
-    const [bx, bz] = bloc.position;
-    const elevGrid = bloc.elevationGrid; // null si le bloc n'a pas d'élévation (rétrocompat)
-
-    for (let gz = 0; gz < BLOCK_SIZE; gz++) {
-      for (let gx = 0; gx < BLOCK_SIZE; gx++) {
-        const rawCell   = bloc.grid[gz]?.[gx];
-        // Support cellules objets (ex: rampe_pente) : extraire le type string
-        const cellType  = !rawCell ? null : (typeof rawCell === 'object' ? rawCell.type : rawCell);
-        const cell      = cellType; // alias pour lisibilité en dessous
-        const elevation = elevGrid?.[gz]?.[gx] ?? 0;
-        const yOffset   = elevation * PLATEAU_HEIGHT * cs;
-        const def       = TYPES_CELLULE[cell] ?? TYPES_CELLULE.null;
-
-        // Cellule rampe_pente (objet) : rendu en prisme incliné
-        if (cellType === 'rampe_pente' && typeof rawCell === 'object') {
-          const { direction = 'E', elevation_start = 0, elevation_end = 1 } = rawCell;
-          const yLow  = elevation_start * PLATEAU_HEIGHT * cs;
-          const yHigh = elevation_end   * PLATEAU_HEIGHT * cs;
-          const c     = cs / 2;
-          const pos   = new Float32Array([
-            -c, yLow,  -c,  -c, yLow,   c,   c, yLow,  -c,   c, yLow,   c,
-            -c, yHigh,  c,   c, yHigh,  c,
-          ]);
-          const idx = [0,2,3, 0,3,1, 0,4,5, 0,5,2, 1,3,5, 1,5,4, 0,1,4, 2,5,3];
-          const geo = new THREE.BufferGeometry();
-          geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-          geo.setIndex(idx);
-          geo.computeVertexNormals();
-          const mat = new THREE.MeshStandardMaterial({ color: 0xd07830 });
-          const m   = new THREE.Mesh(geo, mat);
-          // V4-02 : le prisme monte vers +Z (Sud) par défaut — E et O étaient inversées
-          const rotY = direction === 'N' ? Math.PI
-                     : direction === 'E' ?  Math.PI / 2
-                     : direction === 'O' ? -Math.PI / 2
-                     : 0;
-          m.rotation.y = rotY;
-          m.position.set(bx + gx * cs + cs / 2, 0, bz + gz * cs + cs / 2);
-          group.add(m);
-          continue;
-        }
-
-        // Sol surélevé : cellule vide (route) sur plateau
-        if (!cell && elevation > 0) {
-          const geo = new THREE.BoxGeometry(cs, PLATEAU_FLOOR_H * cs, cs);
-          const mat = new THREE.MeshStandardMaterial({ color: PLATEAU_COULEUR_SOL });
-          const m   = new THREE.Mesh(geo, mat);
-          m.position.set(
-            bx + gx * cs + cs / 2,
-            yOffset + (PLATEAU_FLOOR_H * cs) / 2,
-            bz + gz * cs + cs / 2,
-          );
-          group.add(m);
-          continue;
-        }
-
-        if (def.hauteur === 0) continue; // cellule vide à élévation 0, pas de mesh
-
-        const mat = new THREE.MeshStandardMaterial({ color: def.couleur });
-        let m;
-        if (cell === 'ramp_n' || cell === 'ramp_s' || cell === 'ramp_e' || cell === 'ramp_o') {
-          // SOLO-04 : rampe directionnelle — prisme centré + rotation Y
-          const geo = _creerGeomRampCentree(def.hauteur * cs, cs);
-          m = new THREE.Mesh(geo, mat);
-          // V4-02 : ramp_n/ramp_s étaient inversées (la base monte vers +X = Est)
-          const rotY = cell === 'ramp_o' ? Math.PI
-                     : cell === 'ramp_n' ?  Math.PI / 2
-                     : cell === 'ramp_s' ? -Math.PI / 2
-                     : 0; // ramp_e
-          m.rotation.y = rotY;
-          m.position.set(bx + gx * cs + cs / 2, yOffset, bz + gz * cs + cs / 2);
-        } else if (cell === 'rampe_bosse') {
-          // RACE-C05 : ralentisseur bombé, en travers de la piste — sans mesh
-          // dédié il s'affichait comme une dalle plate qu'on croyait inerte.
-          const geo = new THREE.SphereGeometry(cs * 0.5, 14, 7, 0, Math.PI * 2, 0, Math.PI / 2);
-          m = new THREE.Mesh(geo, mat);
-          m.scale.set(1, 0.42, 0.55);
-          m.position.set(bx + gx * cs + cs / 2, yOffset, bz + gz * cs + cs / 2);
-        } else if (cell === 'bump') {
-          // SOLO-04 : bosse — demi-sphère aplatie
-          const geo = new THREE.SphereGeometry(cs * 0.45, 10, 5, 0, Math.PI * 2, 0, Math.PI / 2);
-          m = new THREE.Mesh(geo, mat);
-          m.position.set(bx + gx * cs + cs / 2, yOffset, bz + gz * cs + cs / 2);
-        } else if (cell === 'movable') {
-          // SOLO-04 : cube déplaçable — même empreinte au sol que son collider
-          const geo = new THREE.BoxGeometry(cs * CUBE_SIZE_RATIO, cs * 1.15, cs * CUBE_SIZE_RATIO);
-          m = new THREE.Mesh(geo, mat);
-          // La cellule devient un objet qui porte la position réelle du cube :
-          // collision.js vise le cube là où il est, pas au centre de sa case.
-          const cellule = (typeof rawCell === 'object' && Number.isFinite(rawCell.x))
-            ? rawCell
-            : { type: 'movable', x: bx + gx * cs + cs / 2, z: bz + gz * cs + cs / 2 };
-          bloc.grid[gz][gx] = cellule;
-          m.position.set(cellule.x, yOffset + cs * 0.575, cellule.z);
-          // Clé = la cellule elle-même. Un cube qui a changé de case puis dont la
-          // colonne est rechargée ne doit pas créer une seconde entrée pour le même
-          // objet : deux entrées se disputeraient sa position et son collider.
-          _movableMeshes.set(cellule, { mesh: m, bloc, gz, gx, vx: 0, vz: 0, cellule });
-        } else if (cell === 'pole') {
-          // SOLO-04 : poteau fin
-          const geo = new THREE.CylinderGeometry(
-            cs * POLE_RADIUS_RATIO, cs * POLE_RADIUS_RATIO, def.hauteur * cs, 6,
-          );
-          m = new THREE.Mesh(geo, mat);
-          m.position.set(bx + gx * cs + cs / 2, yOffset + (def.hauteur * cs) / 2, bz + gz * cs + cs / 2);
-          const key = `${bx},${bz},${gz},${gx}`;
-          _poleMeshes.set(key, { mesh: m, bloc, gz, gx });
-        } else {
-          const geo = new THREE.BoxGeometry(cs, def.hauteur * cs, cs);
-          m = new THREE.Mesh(geo, mat);
-          m.position.set(
-            bx + gx * cs + cs / 2,
-            yOffset + (def.hauteur * cs) / 2,
-            bz + gz * cs + cs / 2,
-          );
-        }
-        group.add(m);
-      }
-    }
-
-    // Murs de transition plateau (RACE-C02) : bords entre élévation 1 et 0
-    if (elevGrid) {
-      for (let gz = 0; gz < BLOCK_SIZE; gz++) {
-        for (let gx = 0; gx < BLOCK_SIZE; gx++) {
-          const elev = elevGrid[gz]?.[gx] ?? 0;
-          if (elev === 0) continue;
-
-          const h = elev * PLATEAU_HEIGHT * cs;
-          const voisins = [
-            { dz: 0,  dx: -1, cote: 'gauche'  },
-            { dz: 0,  dx:  1, cote: 'droit'   },
-            { dz: -1, dx:  0, cote: 'avant'   },
-            { dz:  1, dx:  0, cote: 'arriere' },
-          ];
-
-          for (const { dz, dx, cote } of voisins) {
-            const elevV = elevGrid[gz + dz]?.[gx + dx] ?? 0;
-            if (elevV >= elev) continue;
-
-            const th  = TRANSITION_THICK * cs;
-            const mat = new THREE.MeshStandardMaterial({ color: 0x555570 });
-            let geo, wx, wz;
-
-            switch (cote) {
-              case 'gauche':
-                geo = new THREE.BoxGeometry(th, h, cs);
-                wx = bx + gx * cs; wz = bz + gz * cs + cs / 2; break;
-              case 'droit':
-                geo = new THREE.BoxGeometry(th, h, cs);
-                wx = bx + (gx + 1) * cs; wz = bz + gz * cs + cs / 2; break;
-              case 'avant':
-                geo = new THREE.BoxGeometry(cs, h, th);
-                wx = bx + gx * cs + cs / 2; wz = bz + gz * cs; break;
-              case 'arriere':
-                geo = new THREE.BoxGeometry(cs, h, th);
-                wx = bx + gx * cs + cs / 2; wz = bz + (gz + 1) * cs; break;
-            }
-
-            const m = new THREE.Mesh(geo, mat);
-            m.position.set(wx, h / 2, wz);
-            group.add(m);
-          }
-        }
-      }
-    }
-  }
-
-  return group;
-}
-
-// V4-04 : label posé à plat au sol (texture canvas — pas de chargeur de police,
-// donc rien à télécharger : le jeu doit tourner hors ligne en atelier).
-function _creerLabelSol(texte, couleurCss, blocmapSize) {
-  const canvas  = document.createElement('canvas');
-  canvas.width  = 512;
-  canvas.height = 128;
-
-  const ctx = canvas.getContext('2d');
-  ctx.fillStyle    = couleurCss;
-  ctx.textAlign    = 'center';
-  ctx.textBaseline = 'middle';
-
-  // Réduit la police jusqu'à ce que le texte tienne : les noms de section
-  // ("RAMPE + PLATEAU") sont bien plus longs qu'un simple repère chiffré.
-  let taille = 84;
-  do {
-    ctx.font = `bold ${taille}px system-ui, -apple-system, sans-serif`;
-    if (ctx.measureText(texte).width <= canvas.width * 0.92) break;
-    taille -= 4;
-  } while (taille > 16);
-
-  ctx.fillText(texte, canvas.width / 2, canvas.height / 2);
-
-  const texture = new THREE.CanvasTexture(canvas);
-  texture.colorSpace = THREE.SRGBColorSpace;
-
-  const largeur = blocmapSize * 0.75;
-  const mesh = new THREE.Mesh(
-    new THREE.PlaneGeometry(largeur, largeur / 4),
-    new THREE.MeshBasicMaterial({ map: texture, transparent: true, depthWrite: false }),
-  );
-  mesh.rotation.x = -Math.PI / 2;
-  // Le départ est orienté vers l'Est (angle 0) : le texte se lit dans ce sens.
-  mesh.rotation.z = -Math.PI / 2;
-  return mesh;
-}
-
-function _construireSol(map) {
-  const group = new THREE.Group();
-  const { width, depth } = map.worldExtent;
-  const blocmapSize = BLOCK_SIZE * map.blockScale;
-
-  const solGeo = new THREE.PlaneGeometry(width + 8, depth + 8);
-  const solMat = new THREE.MeshStandardMaterial({ color: 0x2a2a3e });
-  const sol = new THREE.Mesh(solGeo, solMat);
-  sol.rotation.x = -Math.PI / 2;
-  sol.position.set(width / 2, -0.15, depth / 2);
-  group.add(sol);
-
-  // SOLO-05 : dalle départ (coin 0,0) et arrivée (coin W-1,H-1)
-  const blocGeo    = new THREE.PlaneGeometry(blocmapSize, blocmapSize);
-  const entryPos   = map.entry?.worldCenter ?? { x: blocmapSize * 0.5, z: blocmapSize * 0.5 };
-  const exitPos    = map.exit?.worldCenter  ?? map.finishPosition;
-
-  const departMat = new THREE.MeshBasicMaterial({ color: 0x66ff99, transparent: true, opacity: 0.35 });
-  const depart    = new THREE.Mesh(blocGeo, departMat);
-  depart.rotation.x = -Math.PI / 2;
-  depart.position.set(entryPos.x, 0.02, entryPos.z);
-  group.add(depart);
-
-  const arriveeMat = new THREE.MeshBasicMaterial({ color: 0xffd166, transparent: true, opacity: 0.45 });
-  const arrivee    = new THREE.Mesh(blocGeo.clone(), arriveeMat);
-  arrivee.rotation.x = -Math.PI / 2;
-  arrivee.position.set(exitPos.x, 0.02, exitPos.z);
-  group.add(arrivee);
-
-  // Piste de mesure : traits + distances au sol après chaque tremplin, pour
-  // lire d'un coup d'œil la portée d'un saut.
-  for (const repere of _reperesPiste) {
-    if (repere.type === 'section' || repere.type === 'note') {
-      const estSection = repere.type === 'section';
-      const label = _creerLabelSol(
-        repere.label,
-        estSection ? '#ffd88a' : '#8fa6bd',
-        blocmapSize * (estSection ? 1.15 : 0.8),
-      );
-      label.position.set(repere.x, 0.05, repere.z);
-      group.add(label);
-      continue;
-    }
-
-    // Repère de distance : un trait en travers de la piste + sa valeur
-    const trait = new THREE.Mesh(
-      new THREE.PlaneGeometry(0.15, blocmapSize * 0.8),
-      new THREE.MeshBasicMaterial({ color: 0x6688aa, transparent: true, opacity: 0.5 }),
-    );
-    trait.rotation.x = -Math.PI / 2;
-    trait.position.set(repere.x, 0.03, repere.z);
-    group.add(trait);
-
-    const chiffre = _creerLabelSol(repere.label, '#88aacc', blocmapSize * 0.35);
-    chiffre.position.set(repere.x, 0.04, repere.z + blocmapSize * 0.32);
-    group.add(chiffre);
-  }
-
-  // V4-04 : labels au sol pour que les participant·es repèrent les deux zones
-  const labelDepart = _creerLabelSol('DÉPART', '#8effb8', blocmapSize);
-  labelDepart.position.set(entryPos.x, 0.05, entryPos.z);
-  group.add(labelDepart);
-
-  const labelArrivee = _creerLabelSol('ARRIVÉE', '#ffe29a', blocmapSize);
-  labelArrivee.position.set(exitPos.x, 0.05, exitPos.z);
-  group.add(labelArrivee);
-
-  return group;
+  return buildBlockMeshes(blocks, blockScale, {
+    plateauHeight: PLATEAU_HEIGHT,
+    // Clé = la cellule elle-même. Un cube qui a changé de case puis dont le bloc
+    // est rechargé ne doit pas créer une seconde entrée pour le même objet :
+    // deux entrées se disputeraient sa position et son collider.
+    onCube: (cellule, mesh, bloc, gz, gx) =>
+      _movableMeshes.set(cellule, { mesh, bloc, gz, gx, vx: 0, vz: 0, cellule }),
+    onPole: (key, mesh, bloc, gz, gx) => _poleMeshes.set(key, { mesh, bloc, gz, gx }),
+  });
 }
 
 // ---- Clôture de map ----
@@ -732,7 +401,7 @@ async function _regenererMap() {
     ? `Piste de mesure — ${_map.gridCols} blocs, 3 tremplins`
     : `Map : ${_map.gridCols}×${_map.gridRows} (${blocmapSize}u/bloc)` + (MODE_V4 ? ' — BANC V4' : '');
 
-  _solGroup = _construireSol(_map);
+  _solGroup = buildGround(_map, _reperesPiste);
   _scene.add(_solGroup);
 
   _majCloture();
@@ -812,13 +481,11 @@ async function _chargerVehicule(data, { statsDepuisVehicule = true } = {}) {
   _nbChocs        = 0;
   _dernierDeltaV  = 0;
 
-  if (_vehicleGroup) {
-    _scene.remove(_vehicleGroup);
-    _vehicleGroup.clear();
-  }
-  _vehicleGroup = buildVehicleGroup(_vehicleData);
-  _vehicleGroup.scale.setScalar(_echelle());
-  _scene.add(_vehicleGroup);
+  if (_vue) disposeVehicleView(_vue);
+  _vue = createVehicleView(_scene, _vehicleData, {
+    scale:     _echelle(),
+    dustColor: COULEUR_HEX[_vehicleData?.palette?.[0]] ?? '#c8b89a',
+  });
 
   powers.dispose();
   await powers.init(_scene);
@@ -838,23 +505,9 @@ async function _chargerVehicule(data, { statsDepuisVehicule = true } = {}) {
 // Reconstruit le mesh du véhicule après perte de voxels (RACE-D02)
 function _mettreAJourMeshVehicule() {
   if (!_vehicleData) return;
-  if (_vehicleGroup) {
-    _scene.remove(_vehicleGroup);
-    // clear() détache les enfants sans libérer leurs géométries : à raison d'une
-    // reconstruction par choc, la mémoire GPU montait sans jamais redescendre.
-    _vehicleGroup.traverse(o => {
-      o.geometry?.dispose();
-      o.material?.dispose();
-    });
-    _vehicleGroup.clear();
-  }
-  _vehicleGroup = buildVehicleGroup(_vehicleData);
-  _vehicleGroup.scale.setScalar(_echelle());
-  if (_carState) {
-    _vehicleGroup.position.set(_carState.position.x, _hauteurCaisse(), _carState.position.z);
-    _vehicleGroup.rotation.y = -_carState.angle;
-  }
-  _scene.add(_vehicleGroup);
+  // Géométries et matériaux sont partagés (voxel/renderer.js) : la vue
+  // détache l'ancien groupe sans les détruire.
+  if (_vue) rebuildVehicleView(_vue, _vehicleData);
 
   // L'aperçu du panneau montrait le véhicule intact quoi qu'il arrive : il
   // n'était reconstruit qu'au chargement d'un véhicule, jamais après un dégât.
@@ -892,14 +545,11 @@ function _mettreEnSceneEvenements(ev) {
 
   if (ev.landed) {
     camera.shake(ev.landed.impact * (_physConsts?.LANDING_SHAKE ?? 0.25));
-    if (_effetsActifs) kickSquash(_vehicleGroup, ev.landed.impact, _physConsts);
+    if (_effetsActifs) viewLanding(_vue, _carState, ev.landed.impact, _physConsts);
     const reception = ev.landed.reception;
     _derniereReception = reception.perte > 0
       ? `${(reception.desalignement * 100).toFixed(0)} % de travers · −${(reception.perte * 100).toFixed(0)} % vitesse`
       : 'propre';
-    if (_effetsActifs) {
-      particles.emitLanding({ x: _carState.position.x, y: _carState.y + 0.1, z: _carState.position.z }, 8);
-    }
   }
 
   _majEtatAide(ev.aide);
@@ -909,15 +559,8 @@ function _mettreEnSceneEvenements(ev) {
     // Étincelles de frottement : à chaque contact qui glisse le long de la paroi,
     // pas seulement en drift. Le nombre suit la durée de contact (taux par
     // seconde) pour ne pas dépendre du framerate.
-    const seuil = _physConsts?.scrapeMinSpeed ?? 2.0;
-    if (_effetsActifs && !c.pushingCube && c.tangentSpeed > seuil) {
-      const attendu = (_physConsts?.scrapeSparkRate ?? 25) * _dtFrame * (c.tangentSpeed / seuil);
-      const nb = Math.floor(attendu) + (Math.random() < attendu % 1 ? 1 : 0);
-      if (nb > 0) particles.emitSparks(
-        { x: _carState.position.x - c.normal.x * 0.5, y: 0.3,
-          z: _carState.position.z - c.normal.z * 0.5 },
-        c.normal, nb
-      );
+    if (_effetsActifs && !c.pushingCube) {
+      viewWallContact(_vue, _carState, c.normal, c.tangentSpeed, _dtFrame, _physConsts);
     }
     if (c.fresh && c.dmg.damaged) _encaisserChoc(c);
   }
@@ -937,14 +580,19 @@ function _mettreEnSceneEvenements(ev) {
 
 // Choc endommageant : voxels arrachés, stats et pouvoirs recalculés, mesh rebâti
 function _encaisserChoc(c) {
-  // Seuil = vitesse min casse / punitivité : plus punitivité est élevé, plus ça casse tôt
-  const res = resolveImpact(_vehicleData, c.dmg, _carState.angle, _vitesseMinCasse / _punitivite);
-  if (!res) return;
+  // Même règle que le serveur (game/damage.js) : le bouclier encaisse d'abord,
+  // puis la carrosserie. Seuil = vitesse min casse / punitivité : plus
+  // punitivité est élevé, plus ça casse tôt.
+  const res = resolveCollision(_vehicleData, _playerPowerState, c.dmg, _carState.angle,
+    _vitesseMinCasse / _punitivite);
+  if (res.removedVoxels.length === 0) return;
 
   _degats      = res.degats;
   _sim.degats  = _degats;
+  // Le bouclier garde ce qu'il a déjà encaissé : le recréer à neuf le rechargeait
   powers.removeVehicle(CAR_ID);
-  _powersHandle     = powers.createForVehicle(CAR_ID, _vehicleData.powers);
+  _powersHandle     = powers.createForVehicle(CAR_ID, _vehicleData.powers,
+    rebuildPowerState(_playerPowerState, _vehicleData.powers));
   _playerPowerState = _powersHandle.powerState;
 
   _mettreAJourMeshVehicule();
@@ -1819,7 +1467,7 @@ async function init() {
   // la collision (vehicle-tick) comme par le rendu
   $('sl-taille').addEventListener('input', e => {
     if (_physConsts) _physConsts.vehicleScale = parseFloat(e.target.value);
-    _vehicleGroup?.scale.setScalar(_echelle());
+    if (_vue) setVehicleScale(_vue, _echelle());
     _majLibelleTaille();
   });
 
@@ -1915,7 +1563,7 @@ function _boucle(now) {
   _last = now;
   _dtFrame = dt;
 
-  if (_carState && _vehicleData && _vehicleGroup) {
+  if (_carState && _vehicleData && _vue) {
     const inputs = controls.getInputs();
 
     mapLoader.update(_carState.position.x, _cam, _carState.position.z);
@@ -1969,47 +1617,17 @@ function _boucle(now) {
       });
     }
 
-    // V4 : la hauteur vient entièrement de la physique verticale (relief + vol)
-    _vehicleGroup.position.set(
-      _carState.position.x,
-      _hauteurCaisse() + _carState.y,
-      _carState.position.z,
-    );
-    _vehicleGroup.rotation.y = -_carState.angle;
-    // SOLO-02 : axe 'x' car rotation.y = -angle ici (véhicule face +X, pas +Z)
-    applyRoll(_vehicleGroup, _dernierVlat, dt, 'x', _physConsts);
-
-    // Tangage de caisse : cabre à l'accélération, plonge au freinage. En l'air
-    // la caisse revient à plat, le tangage de vol est porté par le groupe.
-    const accelBrute = dt > 0 ? (_dernierVfwd - _vfwdPrecedent) / dt : 0;
-    _vfwdPrecedent = _dernierVfwd;
-    _accelLissee  += (accelBrute - _accelLissee) * (_physConsts?.pitchSmoothing ?? 0.15);
-    applyPitch(_vehicleGroup, (_effetsActifs && !_carState.airborne) ? _accelLissee : 0, dt, 'x', _physConsts);
-    applySquash(_vehicleGroup, dt, _physConsts);
-
-    // Game feel : le capot se lève au décollage et pique en chute. Sans ça, une
-    // voiture qui reste plate en l'air se lit comme un sol qui monte.
-    const pitchCible = _carState.airborne
-      ? Math.max(-0.5, Math.min(0.5, _carState.vy * (_physConsts?.PITCH_FACTOR ?? 0.12)))
-      : 0;
-    _vehicleGroup.rotation.z += (pitchCible - _vehicleGroup.rotation.z) * 0.25;
+    // Rendu de la voiture (game/vehicle-view.js) : position, roulis, cabrage,
+    // écrasement, tangage en vol, traces et poussière de glisse
+    updateVehicleView(_vue, _carState, dt, {
+      consts: _physConsts, effets: _effetsActifs, vLat: _dernierVlat, vFwd: _dernierVfwd,
+    });
 
     trail.push(
       { x: _carState.position.x, y: _hauteurCaisse() + _carState.y, z: _carState.position.z },
       _carState.airborne,
     );
 
-    if (_effetsActifs && _carState.drifting && _carState.speed > 0.5) {
-      const spd = _carState.speed;
-      const nx  = _carState.velocity.x / spd;
-      const nz  = _carState.velocity.z / spd;
-      const dec = physics.decompose(_carState.velocity, _carState.angle);
-      skid.emit(
-        { x: _carState.position.x - nx * 0.6, z: _carState.position.z - nz * 0.6 },
-        _carState.velocity,
-        Math.abs(dec.v_lateral)
-      );
-    }
     // Un cube qui franchit la frontière de son bloc passe dans le bloc voisin
     const tailleBlocCubes = BLOCK_SIZE * _map.blockScale;
     movables.tick(_movableMeshes.values(), dt, _map.blockScale, _physConsts, (x, z) =>
@@ -2018,17 +1636,6 @@ function _boucle(now) {
         z >= b.position[1] && z < b.position[1] + tailleBlocCubes) ?? null);
     skid.update();
 
-    if (_effetsActifs && _carState.drifting && _carState.speed > 5 && Math.random() < 0.12) {
-      const spd = _carState.speed;
-      const nx  = _carState.velocity.x / spd;
-      const nz  = _carState.velocity.z / spd;
-      particles.emitDust(
-        { x: _carState.position.x - nx * 0.7, y: 0.15, z: _carState.position.z - nz * 0.7 },
-        _carState.velocity,
-        COULEUR_HEX[_vehicleData?.palette?.[0]] ?? '#c8b89a',
-        1 + Math.floor(Math.random() * 2),
-      );
-    }
     particles.update(dt);
 
     // Les bots roulent avec la même physique et subissent les mêmes effets

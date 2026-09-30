@@ -186,6 +186,16 @@ export function update(positions) {
   _camera.updateProjectionMatrix();
 }
 
+/** Demi-hauteur visible actuelle (unités monde) — le zoom de la caméra. */
+export function getHalfHeight() {
+  return _currentHalfW;
+}
+
+/** Rapport largeur / hauteur de l'écran. */
+export function getAspect() {
+  return _aspect;
+}
+
 export function resize(canvasW, canvasH) {
   if (!_camera) return;
   _aspect = canvasW / canvasH;

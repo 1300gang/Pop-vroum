@@ -41,7 +41,8 @@ export function createWorldObjects(map) {
         const t   = _type(raw);
         if (t !== 'movable' && t !== 'pole') continue;
 
-        const id = `${bx},${bz},${gz},${gx}`;
+        // Un cube déjà recensé (map reçue du serveur) garde son id d'origine
+        const id = raw?.id ?? `${bx},${bz},${gz},${gx}`;
         const cx = bx + gx * cs + cs / 2;
         const cz = bz + gz * cs + cs / 2;
 
@@ -49,6 +50,7 @@ export function createWorldObjects(map) {
           const cellule = (typeof raw === 'object' && Number.isFinite(raw.x))
             ? raw
             : { type: 'movable', x: cx, z: cz };
+          cellule.id = id;   // voyage avec la map : le client retrouve le même cube
           bloc.grid[gz][gx] = cellule;
           cubes.set(id, {
             id, mesh: { position: { x: cellule.x, y: 0, z: cellule.z } },
@@ -75,4 +77,59 @@ export function findBlockAt(map, x, z) {
   return map.blocks.find(b =>
     x >= b.position[0] && x < b.position[0] + taille &&
     z >= b.position[1] && z < b.position[1] + taille) ?? null;
+}
+
+/**
+ * Pose un cube à une position reçue du serveur. Si le cube change de case, sa
+ * cellule de collision le suit (même règle que movables.tick) : sans ça, la
+ * prédiction locale buterait contre un cube fantôme resté à son ancienne place.
+ * @param {object} map
+ * @param {object} cube — entrée de createWorldObjects
+ * @param {number} x
+ * @param {number} z
+ */
+export function placeCube(map, cube, x, z) {
+  const cs   = map.blockScale ?? 2;
+  const bloc = findBlockAt(map, x, z) ?? cube.bloc;
+  const gx   = Math.max(0, Math.min(BLOCK_SIZE - 1, Math.floor((x - bloc.position[0]) / cs)));
+  const gz   = Math.max(0, Math.min(BLOCK_SIZE - 1, Math.floor((z - bloc.position[1]) / cs)));
+  if (bloc !== cube.bloc || gx !== cube.gx || gz !== cube.gz) {
+    if (cube.bloc.grid[cube.gz][cube.gx] === cube.cellule) cube.bloc.grid[cube.gz][cube.gx] = null;
+    bloc.grid[gz][gx] = cube.cellule;
+    cube.bloc = bloc; cube.gx = gx; cube.gz = gz;
+  }
+  cube.cellule.x = x;
+  cube.cellule.z = z;
+  cube.mesh.position.x = x;
+  cube.mesh.position.z = z;
+}
+
+/**
+ * Index des blocs par case, pour ne tester la collision qu'autour d'un véhicule.
+ * @param {object} map
+ */
+export function createBlockIndex(map) {
+  return {
+    cs:      map.blockScale ?? 2,
+    parCase: new Map(map.blocks.map(b => [`${b.col},${b.row}`, b])),
+  };
+}
+
+/**
+ * Blocs autour d'une position (3×3) : chaque véhicule entre en collision avec
+ * ce qui l'entoure LUI, pas avec les blocs chargés pour l'affichage.
+ * @param {object} index — createBlockIndex()
+ * @param {{x,z}} pos
+ */
+export function blocksAround(index, pos) {
+  const taille = BLOCK_SIZE * index.cs;
+  const c = Math.floor(pos.x / taille), r = Math.floor(pos.z / taille);
+  const blocs = [];
+  for (let dr = -1; dr <= 1; dr++) {
+    for (let dc = -1; dc <= 1; dc++) {
+      const b = index.parCase.get(`${c + dc},${r + dr}`);
+      if (b) blocs.push(b);
+    }
+  }
+  return blocs;
 }

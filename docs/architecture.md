@@ -110,7 +110,8 @@ Dimensions : `DIM_X = 8`, `DIM_Z = 4`, `DIM_Y = 4`.
              turn-analyzer · turn-view · steer-assist (aide couloir)
              vehicle-tick (boucle de conduite partagée solo / serveur)
              damage · world-objects · bot-brain (cerveau des bots, pur)
-  network/   client · lobby · sync
+             map-view · vehicle-view (rendu partagé test-v5 / page de jeu)
+  network/   client · lobby · sync (interpolation) · prediction (voiture locale)
   storage/   local · gallery
 
 /public/js/pages/             un script d'entrée par page
@@ -262,8 +263,9 @@ C'est cette cohabitation qui impose le double mode du générateur. `dedupePoolB
 | `lobby:join` | `{ vehicle, playerName }` |
 | `lobby:leave` | `{}` |
 | `lobby:ready` | `{ ready }` |
-| `game:input` | `{ steering, braking, reversing }` |
+| `game:input` | `{ steering, braking, reversing }` (`reversing` n'était pas envoyé avant le 30/09) |
 | `game:rejoin` | `{ matchId, playerId }` |
+| `game:rejouer` | `{}` — après la victoire ; le match suivant part quand tous les humains connectés ont voté |
 
 ### Serveur → client
 
@@ -277,6 +279,8 @@ C'est cette cohabitation qui impose le double mode du générateur. `dedupePoolB
 | `game:victory` | `{ matchId, podium }` — ⚠ le podium ne doit pas être affiché aux joueurs |
 | `game:rejoin:ok` | `{ matchId, playerId, snapshot }` — `snapshot` = état courant (voir ci-dessous) |
 | `game:rejoin:error` | `{ message }` |
+| `game:rejouer:votes` | `{ votes, total }` |
+| `lobby:start` | aussi envoyé pour « Rejouer » : la page de jeu stocke la nouvelle partie et se recharge |
 
 ```js
 // game:state — 30 Hz (mis à jour le 30/09)
@@ -330,7 +334,11 @@ Depuis le 30/09, la boucle serveur fait tourner `game/vehicle-tick.js`, le même
 | Effets de pouvoir (RVB + bouclier) | Visuels des pouvoirs |
 | Génération de map, jauge de cohésion, arrivée et victoire | |
 
-⚠ `game-page.js` (page multijoueur actuelle, datée de mai) n'exploite pas encore `events`, `cubes`, `phase` ni `snapshot`, et calcule encore sa propre perte de voxels locale. Elle sera remplacée par la nouvelle page de jeu (étape 3).
+**Page de jeu (`game.html` / `game-page.js`, réécrite le 30/09)** : interface minimale (jauge « Ensemble », flèches hors écran, mini-carte, marqueur sur sa voiture, Frein / Reculer, Quitter, écran de victoire collective + Rejouer ; aucun classement, aucun debug).
+- **Sa voiture est prédite** : elle roule tout de suite avec `vehicle-tick` et se recale en douceur sur le serveur (`network/prediction.js`, réglages `network.*` de `gameplay.json`). Mesuré (serveur réel, client simulé à 60 fps) : écart médian 0,05 u, 95e centile ≤ 0,25 u jusqu'à 60 ms de latence, aucun recalage brutal en course. La prédiction ne pousse pas les cubes ni ne casse les poteaux : c'est le serveur qui le fait et le client suit.
+- **Les autres voitures** sont interpolées avec un retard de rendu de `network.interpDelayMs` (`network/sync.js`, réécrit : il comparait l'id de socket aux ids de joueurs et ne reconnaissait jamais la voiture locale).
+- Rendu partagé avec test-v5 : `game/map-view.js` (blocs, sol) et `game/vehicle-view.js` (voiture et effets).
+- Effets : ceux de sa voiture viennent de la prédiction (immédiats), ceux des autres des `events` serveur ; la perte de voxels vient toujours du serveur.
 
 ### Calcul de cohésion (dans `game-loop.js`)
 
