@@ -34,9 +34,6 @@ import { checkTerrain }   from './collision.js';
 import { getSurfaceGrip } from './map-generator.js';
 import { assistSteering } from './steer-assist.js';
 
-const STUCK_THRESHOLD       = 0.4;  // secondes collé à un mur avant le recul
-const AUTO_REVERSE_DURATION = 0.8;  // secondes de recul automatique
-
 const RAMPES_PENTE = new Set(['rampe_pente', 'ramp_n', 'ramp_s', 'ramp_e', 'ramp_o']);
 const FX_NEUTRES   = { speedMul: 1, gripMul: 1, accelMul: 1 };
 
@@ -139,16 +136,23 @@ export function tickVehicle(sim, inputs, world, dt, opts = {}) {
   const surfaceGrip = getSurfaceGrip(terrain?.softTerrain ?? null);
 
   // ---- Recul automatique si bloqué dans un mur ----
+  // « Bloqué » = en contact ET presque à l'arrêt. Une voiture plaquée contre un
+  // mur ne le touche qu'une frame sur deux (rebond, puis le moteur la renvoie
+  // dedans) : remettre le compteur à zéro à chaque frame sans contact
+  // l'empêchait d'atteindre le seuil, et le recul ne partait jamais. On ne le
+  // remet donc à zéro que si la voiture roule vraiment. Frotter le long d'une
+  // paroi à bonne vitesse ne compte pas comme bloqué.
+  const vitesseBloque = consts.stuckSpeed ?? 1.0;
   if (sim.autoReverseTimer > 0) {
     sim.autoReverseTimer -= dt;
     if (sim.autoReverseTimer <= 0) sim.stuckTimer = 0;
-  } else if (terrain?.hardCollision) {
+  } else if (terrain?.hardCollision && car.speed < vitesseBloque) {
     sim.stuckTimer += dt;
-    if (sim.stuckTimer > STUCK_THRESHOLD) {
-      sim.autoReverseTimer = AUTO_REVERSE_DURATION;
+    if (sim.stuckTimer > (consts.stuckThreshold ?? 0.4)) {
+      sim.autoReverseTimer = consts.autoReverseDuration ?? 0.8;
       sim.stuckTimer       = 0;
     }
-  } else {
+  } else if (car.speed >= vitesseBloque) {
     sim.stuckTimer = 0;
   }
   const isAutoReversing = sim.autoReverseTimer > 0;
